@@ -1,5 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <Import Project="ADOFAILoom.local.props" Condition="Exists('ADOFAILoom.local.props')" />
+
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
     <OutputType>Library</OutputType>
@@ -8,7 +10,11 @@
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <OutputPath>bin\$(Configuration)\</OutputPath>
+    <GameExePath Condition="'$(GameExePath)' == '' and '$(ADOFAI_GAME_EXE)' != ''">$(ADOFAI_GAME_EXE)</GameExePath>
+    <DeployMod Condition="'$(DeployMod)' == ''">false</DeployMod>
+    <AutoLaunchGame Condition="'$(AutoLaunchGame)' == ''">false</AutoLaunchGame>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)'=='Debug'">
@@ -24,13 +30,13 @@
     <DefineConstants>TRACE</DefineConstants>
   </PropertyGroup>
 
-  <PropertyGroup>
-    <GameExePath>D:\Steam\steamapps\common\A Dance of Fire and Ice\A Dance of Fire and Ice.exe</GameExePath>
-    <AutoLaunchGame>false</AutoLaunchGame>
-  </PropertyGroup>
-
   <!-- 导入构建目标 / Import build targets -->
   <Import Project="ADOFAIMod.targets" />
+
+  <ItemGroup>
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="src\Mod\**\*.cs" />
+  </ItemGroup>
 
   <ItemGroup>
     <Reference Include="0Harmony">
@@ -50,6 +56,11 @@
     </Reference>
     <Reference Include="RDTools">
       <HintPath>$(ManagedAssembliesDir)\RDTools.dll</HintPath>
+    </Reference>
+    <Reference Include="System.Text.Json, Version=8.0.0.3, Culture=neutral, PublicKeyToken=cc7b13ffcd2ddd51">
+      <HintPath>$(ManagedAssembliesDir)\System.Text.Json.dll</HintPath>
+      <SpecificVersion>true</SpecificVersion>
+      <Private>false</Private>
     </Reference>
     <Reference Include="UnityEngine">
       <HintPath>$(ManagedAssembliesDir)\UnityEngine.dll</HintPath>
