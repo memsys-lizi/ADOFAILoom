@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
-using ADOFAILoom.Mcp.Tools;
+using ADOFAILoom.Mcp.Tooling;
 
 namespace ADOFAILoom.Mcp.Protocol
 {

@@ -25,7 +25,8 @@ src/Mod/
 ├─ Mcp/
 │  ├─ Protocol/  MCP and JSON-RPC routing and DTOs
 │  ├─ Transport/ loopback Streamable HTTP transport
-│  └─ Tools/     reflection framework and one file per tool
+│  ├─ Tooling/   reflection discovery, schema generation, and invocation framework
+│  └─ Tools/     one implementation file per public MCP tool
 ├─ State/        state DTOs, exact mode mapping, Unity state capture
 └─ Threading/    Unity main-thread dispatcher
 ```
@@ -38,8 +39,8 @@ src/Mod/
 
 ## MCP tools
 
-- Define each tool as a normal method decorated with `[McpTool]` in its own file under `src/Mod/Mcp/Tools/`.
-- Tool discovery, input schema generation, parameter binding, annotations, invocation, and result wrapping belong to the shared reflection framework.
+- Define each tool as a normal method decorated with `[McpTool]` in its own file under `src/Mod/Mcp/Tools/`. Nothing except concrete tool implementations belongs in this directory.
+- Tool discovery, input schema generation, parameter binding, annotations, invocation, and result wrapping belong under `src/Mod/Mcp/Tooling/`.
 - Tool methods contain business logic only and return serializable DTOs; they must not construct JSON-RPC or MCP response envelopes.
 - Tool containers use constructor injection. Every dependency must be registered explicitly in `McpServerFactory`; unresolved dependencies and ambiguous constructors are startup errors.
 - Duplicate tool names, missing descriptions, unsupported parameter types, invalid signatures, and non-value return types are startup errors.

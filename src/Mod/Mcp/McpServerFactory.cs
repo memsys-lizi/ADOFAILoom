@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 using ADOFAILoom.Mcp.Protocol;
-using ADOFAILoom.Mcp.Tools;
+using ADOFAILoom.Mcp.Tooling;
 using ADOFAILoom.Mcp.Transport;
 using ADOFAILoom.Threading;
 

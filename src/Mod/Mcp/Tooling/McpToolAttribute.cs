@@ -1,6 +1,6 @@
 using System;
 
-namespace ADOFAILoom.Mcp.Tools
+namespace ADOFAILoom.Mcp.Tooling
 {
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
     internal sealed class McpToolAttribute : Attribute

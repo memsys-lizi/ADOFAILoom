@@ -5,7 +5,7 @@ using System.Reflection;
 using System.Text.Json;
 using ADOFAILoom.Mcp.Protocol;
 
-namespace ADOFAILoom.Mcp.Tools
+namespace ADOFAILoom.Mcp.Tooling
 {
     internal sealed class McpToolRegistry
     {

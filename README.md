@@ -114,7 +114,7 @@ internal sealed class ExampleTool
 }
 ```
 
-启动时会自动反射发现工具，并生成工具清单、参数 JSON Schema、annotations 和调用适配器。普通方法参数会成为 camelCase MCP 参数；`CancellationToken` 由框架注入。工具方法只返回业务 DTO，不手写 JSON-RPC 或 MCP 响应。
+启动时会由 `Mcp/Tooling/` 中的框架自动反射发现工具，并生成工具清单、参数 JSON Schema、annotations 和调用适配器。普通方法参数会成为 camelCase MCP 参数；`CancellationToken` 由框架注入。`Mcp/Tools/` 只存放具体工具，工具方法只返回业务 DTO，不手写 JSON-RPC 或 MCP 响应。
 
 如果工具类需要新的构造函数依赖，必须在 `McpServerFactory` 中显式注册。重复工具名、缺少描述、未知依赖、非法签名或不支持的参数类型都会阻止 Mod 启用，不会被忽略。
 
@@ -133,6 +133,7 @@ ADOFAILoom/
    ├─ Main.cs
    ├─ Mcp/
    │  ├─ Protocol/
+   │  ├─ Tooling/
    │  ├─ Tools/
    │  └─ Transport/
    ├─ State/

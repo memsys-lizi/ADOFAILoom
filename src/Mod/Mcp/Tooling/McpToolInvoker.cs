@@ -7,7 +7,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace ADOFAILoom.Mcp.Tools
+namespace ADOFAILoom.Mcp.Tooling
 {
     internal sealed class McpToolInvoker
     {

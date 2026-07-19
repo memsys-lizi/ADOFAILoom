@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace ADOFAILoom.Mcp.Tools
+namespace ADOFAILoom.Mcp.Tooling
 {
     internal static class JsonSchemaGenerator
     {
