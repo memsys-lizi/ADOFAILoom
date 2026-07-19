@@ -1,3 +1,5 @@
+using ADOFAILoom.Protocol;
+
 namespace ADOFAILoom.State
 {
     internal static class GameStateSnapshotProvider

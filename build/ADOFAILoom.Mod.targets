@@ -1,0 +1,68 @@
+<Project>
+
+  <PropertyGroup>
+    <GameDir Condition="'$(GameExePath)' != ''">$([System.IO.Path]::GetDirectoryName($(GameExePath)))</GameDir>
+    <GameFileName Condition="'$(GameExePath)' != ''">$([System.IO.Path]::GetFileNameWithoutExtension($(GameExePath)))</GameFileName>
+    <PathSeparator>$([System.IO.Path]::DirectorySeparatorChar)</PathSeparator>
+    <ManagedAssembliesDir Condition="'$(GameExePath)' != ''">$(GameDir)$(PathSeparator)$(GameFileName)_Data$(PathSeparator)Managed</ManagedAssembliesDir>
+    <RepositoryRoot>$([System.IO.Path]::GetFullPath('$(MSBuildProjectDirectory)\..\..'))</RepositoryRoot>
+    <PackageRoot>$(RepositoryRoot)$(PathSeparator)out$(PathSeparator)</PackageRoot>
+    <PackageDir>$(PackageRoot)$(AssemblyName)$(PathSeparator)</PackageDir>
+    <McpServerProject>$(RepositoryRoot)$(PathSeparator)src$(PathSeparator)McpServer$(PathSeparator)ADOFAILoom.McpServer.csproj</McpServerProject>
+    <McpServerPublishDir>$(RepositoryRoot)$(PathSeparator)src$(PathSeparator)McpServer$(PathSeparator)obj$(PathSeparator)mcp-server-publish$(PathSeparator)</McpServerPublishDir>
+    <McpServerExe>$(McpServerPublishDir)ADOFAILoom.McpServer.exe</McpServerExe>
+  </PropertyGroup>
+
+  <Target Name="ValidateGameExePath" BeforeTargets="Build">
+    <Error Text="未设置游戏路径。请设置 ADOFAI_GAME_EXE 环境变量或传入 -p:GameExePath=&amp;quot;...&amp;quot;。/ Game executable path is not configured. Set ADOFAI_GAME_EXE or pass -p:GameExePath=&amp;quot;...&amp;quot;."
+           Condition="'$(GameExePath)' == ''" />
+    <Error Text="游戏可执行文件不存在：$(GameExePath)。请检查路径是否正确。/ Game executable does not exist: $(GameExePath). Please check if the path is correct."
+           Condition="'$(GameExePath)' != '' AND !Exists('$(GameExePath)')" />
+  </Target>
+
+  <Target Name="PublishMcpServer" AfterTargets="Build">
+    <RemoveDir Directories="$(McpServerPublishDir)" />
+    <MSBuild Projects="$(McpServerProject)"
+             Targets="Publish"
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=win-x64;SelfContained=true;PublishSingleFile=true;PublishDir=$(McpServerPublishDir)" />
+    <Error Text="MCP Server publish did not produce $(McpServerExe)."
+           Condition="!Exists('$(McpServerExe)')" />
+  </Target>
+
+  <Target Name="PackageMod" AfterTargets="PublishMcpServer">
+    <RemoveDir Directories="$(PackageRoot)" />
+    <MakeDir Directories="$(PackageDir)" />
+    <ItemGroup>
+      <PackageFiles Include="$(TargetPath)" />
+      <PackageFiles Include="$(MSBuildProjectDirectory)$(PathSeparator)Info.json" />
+      <PackageFiles Include="$(McpServerExe)" />
+    </ItemGroup>
+    <Copy SourceFiles="@(PackageFiles)" DestinationFolder="$(PackageDir)" />
+    <Message Text="Installable Mod package: $(PackageDir)" Importance="high" />
+  </Target>
+
+  <Target Name="DeployAndLaunch"
+          AfterTargets="PackageMod"
+          Condition="'$(DeployMod)' == 'true' AND '$(GameExePath)' != '' AND Exists('$(GameExePath)')">
+    <PropertyGroup>
+      <ModsDir>$(GameDir)$(PathSeparator)Mods$(PathSeparator)$(AssemblyName)$(PathSeparator)</ModsDir>
+    </PropertyGroup>
+
+    <MakeDir Directories="$(ModsDir)" />
+    <ItemGroup>
+      <ModPackageFiles Include="$(PackageDir)**$(PathSeparator)*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(ModPackageFiles)"
+          DestinationFiles="@(ModPackageFiles->'$(ModsDir)%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Message Text="Mod deployed to game directory: $(ModsDir)" Importance="high" />
+
+    <Exec Command="start &quot;&quot; &quot;$(GameExePath)&quot;"
+          IgnoreExitCode="true"
+          Condition="'$(AutoLaunchGame)' == 'true' AND '$(OS)' == 'Windows_NT'" />
+    <Message Text="Game launched: $(GameExePath)" Importance="high"
+             Condition="'$(AutoLaunchGame)' == 'true'" />
+    <Message Text="Auto-launch disabled. Game not started." Importance="high"
+             Condition="'$(AutoLaunchGame)' != 'true'" />
+  </Target>
+
+</Project>

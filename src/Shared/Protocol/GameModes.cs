@@ -1,4 +1,4 @@
-namespace ADOFAILoom.State
+namespace ADOFAILoom.Protocol
 {
     public static class GameModes
     {

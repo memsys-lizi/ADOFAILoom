@@ -1,4 +1,4 @@
-using ADOFAILoom.Mcp;
+using ADOFAILoom.Bridge;
 using ADOFAILoom.Threading;
 using UnityModManagerNet;
 
@@ -7,7 +7,7 @@ namespace ADOFAILoom
     public static class Main
     {
         private static readonly MainThreadDispatcher Dispatcher = new MainThreadDispatcher();
-        private static McpHttpServer? mcpServer;
+        private static GameBridgeServer? bridgeServer;
 
         public static UnityModManager.ModEntry? Mod { get; private set; }
 
@@ -17,7 +17,7 @@ namespace ADOFAILoom
             modEntry.OnToggle = OnToggle;
             modEntry.OnUpdate = OnUpdate;
             modEntry.OnUnload = OnUnload;
-            modEntry.Logger.Log("ADOFAILoom Streamable HTTP MCP mod loaded / MCP Mod 已加载");
+            modEntry.Logger.Log("ADOFAILoom game bridge loaded / 游戏桥接已加载");
             return true;
         }
 
@@ -25,24 +25,24 @@ namespace ADOFAILoom
         {
             if (!enabled)
             {
-                StopServer();
-                modEntry.Logger.Log("MCP server disabled / MCP 服务已关闭");
+                StopBridge();
+                modEntry.Logger.Log("Game bridge disabled / 游戏桥接已关闭");
                 return true;
             }
 
             try
             {
-                mcpServer ??= McpServerFactory.Create(
+                bridgeServer ??= new GameBridgeServer(
                     Dispatcher,
                     message => modEntry.Logger.Log(message));
-                mcpServer.Start();
-                modEntry.Logger.Log($"MCP server listening at {McpConstants.EndpointUrl}");
+                bridgeServer.Start();
+                modEntry.Logger.Log("Game bridge listening on ADOFAILoom.GameBridge.v1");
                 return true;
             }
             catch (System.Exception exception)
             {
-                StopServer();
-                modEntry.Logger.Error($"Unable to start MCP server: {exception}");
+                StopBridge();
+                modEntry.Logger.Error($"Unable to start game bridge: {exception}");
                 return false;
             }
         }
@@ -54,15 +54,15 @@ namespace ADOFAILoom
 
         private static bool OnUnload(UnityModManager.ModEntry modEntry)
         {
-            StopServer();
+            StopBridge();
             Mod = null;
             return true;
         }
 
-        private static void StopServer()
+        private static void StopBridge()
         {
-            mcpServer?.Dispose();
-            mcpServer = null;
+            bridgeServer?.Dispose();
+            bridgeServer = null;
             Dispatcher.CancelPending();
         }
     }
