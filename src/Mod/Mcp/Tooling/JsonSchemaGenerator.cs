@@ -61,14 +61,9 @@ namespace ADOFAILoom.Mcp.Tooling
             Type? nullableType = Nullable.GetUnderlyingType(type);
             if (nullableType != null)
             {
-                return new Dictionary<string, object?>
-                {
-                    ["anyOf"] = new object[]
-                    {
-                        CreateTypeSchema(nullableType, visiting),
-                        new Dictionary<string, object?> { ["type"] = "null" }
-                    }
-                };
+                // Nullable<T> represents an omittable input in the reflection contract.
+                // Explicit JSON null is never a valid tool argument.
+                return CreateTypeSchema(nullableType, visiting);
             }
 
             if (type == typeof(string) || type == typeof(char))
@@ -152,8 +147,8 @@ namespace ADOFAILoom.Mcp.Tooling
                     }
 
                     properties.Add(name, schema);
-                    bool optional = Nullable.GetUnderlyingType(property.PropertyType) != null ||
-                                    property.GetCustomAttribute<McpOptionalAttribute>() != null;
+                    bool optional =
+                        property.GetCustomAttribute<McpOptionalAttribute>() != null;
                     if (!optional)
                     {
                         required.Add(name);

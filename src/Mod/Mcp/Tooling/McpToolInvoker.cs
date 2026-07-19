@@ -44,6 +44,7 @@ namespace ADOFAILoom.Mcp.Tooling
                 throw new McpInvalidArgumentsException("Tool arguments must be a JSON object.");
             }
 
+            RejectExplicitNulls(argumentObject, string.Empty);
             foreach (JsonProperty property in argumentObject.EnumerateObject())
             {
                 if (!argumentNames.Contains(property.Name))
@@ -207,6 +208,40 @@ namespace ADOFAILoom.Mcp.Tooling
         private static JsonElement EmptyArguments()
         {
             return JsonSerializer.SerializeToElement(new Dictionary<string, object?>());
+        }
+
+        private static void RejectExplicitNulls(JsonElement element, string path)
+        {
+            if (element.ValueKind == JsonValueKind.Object)
+            {
+                foreach (JsonProperty property in element.EnumerateObject())
+                {
+                    string propertyPath = string.IsNullOrEmpty(path)
+                        ? property.Name
+                        : path + "." + property.Name;
+                    RejectExplicitNulls(property.Value, propertyPath);
+                }
+
+                return;
+            }
+
+            if (element.ValueKind == JsonValueKind.Array)
+            {
+                int index = 0;
+                foreach (JsonElement item in element.EnumerateArray())
+                {
+                    RejectExplicitNulls(item, $"{path}[{index}]");
+                    index++;
+                }
+
+                return;
+            }
+
+            if (element.ValueKind == JsonValueKind.Null)
+            {
+                throw new McpInvalidArgumentsException(
+                    $"Tool argument '{path}' cannot be null. Omit optional values instead.");
+            }
         }
     }
 

@@ -96,7 +96,7 @@ namespace ADOFAILoom.Mcp.Protocol
         public string Name => "ADOFAILoom";
 
         [JsonPropertyName("version")]
-        public string Version => "1.0.0";
+        public string Version => "1.1.0";
     }
 
     internal sealed class McpToolsListResult

@@ -48,9 +48,11 @@ src/Mod/
 - Duplicate tool names, missing descriptions, unsupported parameter types, invalid signatures, and non-value return types are startup errors.
 - Parameters are required unless explicitly optional. Reject unknown, missing, null, and incorrectly typed arguments.
 - `CancellationToken` is injected and excluded from public input schemas.
-- Public tools are `get_game_state`, `switch_scene`, and `open_level`.
+- Public tools are `get_game_state`, `switch_scene`, `open_level`, `get_editor_state`, `list_visual_events`, the `add/update/remove_camera_move_events` family, the `add/update/remove_filter_events` family, `undo_editor`, `redo_editor`, and `save_level`.
 - Mark `get_game_state` read-only, non-destructive, idempotent, and closed-world.
+- Mark editor-state and visual-event listing tools read-only, non-destructive, idempotent, and closed-world.
 - Mark `switch_scene` and `open_level` mutating, destructive, and non-idempotent. `open_level` is open-world because it reads a user-provided file path.
+- Mark visual-event mutations and editor history operations destructive, non-idempotent, and closed-world. Mark `save_level` destructive, idempotent, and open-world.
 - Successful calls return both JSON text content and `structuredContent`.
 
 ## Unity lifecycle and threading
@@ -99,6 +101,13 @@ Current schema version is `2`:
 - Validate built-in scenes through Unity and installed DLC scenes through the game's DLC registry before starting a transition.
 - `open_level(levelPath)` accepts only an absolute path to an existing `.adofai` file and requires the current scene to be `scnEditor`. It must not switch scenes automatically or reinterpret the value as an official level ID.
 - Both actions must use the game's unsaved-editor confirmation flow. Return `started` when the action starts synchronously and `awaiting_confirmation` when the game is waiting for the user.
+- Editor visual tools use native `.adofai` units: zero-based floor, degree `angleOffset`, beat `duration`, tile-unit position, and percentage zoom or intensity. Do not convert from seconds, normalize percentages, or infer timing from audio.
+- Never expose arbitrary `LevelData` paths or property dictionaries for mutation. Public visual mutations use strict typed DTOs and game runtime metadata for validation.
+- Every editor mutation requires the exact current level revision. Event updates and removals additionally require an exact collection/index/type/fingerprint reference; stale references fail without searching for a replacement.
+- Validate the entire batch before mutation and use one `SaveStateScope` per successful batch. Preserve request order and refresh affected event indicators and floors through the editor APIs.
+- Do not call `PropertyInfo.Validate` for MCP input because it clamps. Reject values outside the runtime metadata range, invalid enum names, unsupported first-floor placement, locked events, preview mode, path lock, empty batches, and duplicate references.
+- Camera tools support only `MoveCamera`. Filter tools support only standard `SetFilter`; do not accept `SetFilterAdvanced` property dictionaries.
+- Visual mutations remain in editor memory until `save_level` is called. `save_level` must reject missing/non-`.adofai` paths and verify the written JSON revision before reporting success.
 
 ## Build and manual verification
 
@@ -111,5 +120,5 @@ dotnet build -c Release -p:DeployMod=true
 - `out/ADOFAILoom` must contain only `ADOFAILoom.dll` and `Info.json`.
 - Deployment must recreate `Mods/ADOFAILoom` so obsolete files cannot survive an upgrade.
 - Verify protocol behavior with direct HTTP requests, MCP Inspector, UMM logs, and manual in-game checks. Never create automated test code.
-- Manually cover initialize, initialized notification, tools/list, all three tools, malformed requests, invalid headers, scene switching, editor confirmation, valid/invalid level paths, menu, level select, custom level select, editor, gameplay, pause, disable, and shutdown.
+- Manually cover initialize, initialized notification, tools/list, all public tools, malformed requests, invalid headers, scene switching, editor confirmation, valid/invalid level paths, editor revisions and stale references, camera/filter CRUD, undo/redo/save, menu, level select, custom level select, editor, gameplay, pause, disable, and shutdown.
 - Update `README.md` whenever the endpoint, port, versions, tool contract, build behavior, or client configuration changes.
