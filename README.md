@@ -137,6 +137,17 @@ claude mcp add --transport http adofai http://127.0.0.1:39473/mcp
 
 删除客户端中旧的 `command = ...ADOFAILoom.McpServer.exe` 或 stdio 配置。修改配置后按客户端要求重新连接或刷新 MCP 服务。
 
+### 协议兼容性
+
+服务端不根据客户端名称或 `User-Agent` 分支处理，而是统一实现 MCP 请求契约：
+
+- 接受并校验请求参数中的标准 `_meta` 对象，包括 Cursor 使用的 `progressToken`。
+- `_meta` 中未被服务端使用的扩展键会按 MCP 约定保留为不透明元数据，不会被误判成工具参数。
+- 无参数工具接受省略 `arguments`、`arguments: {}`，以及客户端将可选参数对象序列化成 `arguments: null` 的形式；该归一化只发生在 `tools/call` 外层，具体工具参数仍严格按照生成的 JSON Schema 校验。
+- 未知业务参数、错误的 `_meta` 类型、错误的工具参数类型和未协商的协议功能仍会明确失败。
+
+当前协议层面向 Codex、Cursor 和 Claude Code 的 Streamable HTTP 客户端；三者使用同一个 URL 和同一组自动发现、调用流程。
+
 ## 新增工具
 
 在 `src/Mod/Mcp/Tools/` 新建一个工具类，使用构造函数声明依赖，并给业务方法添加 `[McpTool]`：
