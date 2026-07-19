@@ -229,6 +229,10 @@ namespace ADOFAILoom.Mcp.Protocol
             {
                 return Error(200, id, InvalidParams, "Invalid params", exception.Message);
             }
+            catch (ArgumentException exception)
+            {
+                return Error(200, id, InvalidParams, "Invalid params", exception.Message);
+            }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 throw;

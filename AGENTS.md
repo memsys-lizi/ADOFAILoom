@@ -22,6 +22,7 @@ There is one solution, one `netstandard2.1` project, and one distributed DLL. Do
 ```text
 src/Mod/
 ├─ Main.cs       UMM lifecycle coordinator
+├─ Actions/      mutating game operations and their result DTOs
 ├─ Mcp/
 │  ├─ Protocol/  MCP and JSON-RPC routing and DTOs
 │  ├─ Transport/ loopback Streamable HTTP transport
@@ -33,7 +34,8 @@ src/Mod/
 
 - `Main` coordinates lifecycle only.
 - HTTP and protocol code must never reference Unity state directly.
-- Only `State` code may read `ADOBase`, `scrController`, `scnGame`, or `scnEditor`.
+- Only `State` and `Actions` may reference `ADOBase`, `scrController`, `scnGame`, or `scnEditor`. `State` captures read-only snapshots; `Actions` performs explicit mutations.
+- Mutating Unity operations belong in `Actions`; MCP tool files delegate to them and do not manipulate scenes or editor objects directly.
 - Pure DTOs and mapping logic must not depend on HTTP or UMM.
 - Do not add Harmony patches unless a required feature cannot use stable game APIs; document the reason if this changes.
 
@@ -46,8 +48,9 @@ src/Mod/
 - Duplicate tool names, missing descriptions, unsupported parameter types, invalid signatures, and non-value return types are startup errors.
 - Parameters are required unless explicitly optional. Reject unknown, missing, null, and incorrectly typed arguments.
 - `CancellationToken` is injected and excluded from public input schemas.
-- Public tool name: `get_game_state`.
-- Mark it read-only, non-destructive, idempotent, and closed-world.
+- Public tools are `get_game_state`, `switch_scene`, and `open_level`.
+- Mark `get_game_state` read-only, non-destructive, idempotent, and closed-world.
+- Mark `switch_scene` and `open_level` mutating, destructive, and non-idempotent. `open_level` is open-world because it reads a user-provided file path.
 - Successful calls return both JSON text content and `structuredContent`.
 
 ## Unity lifecycle and threading
@@ -90,6 +93,13 @@ Current schema version is `2`:
 - `paused=null` means no `scrController` exists; do not turn it into `false`.
 - Additive fields may retain schema version 2. Breaking changes require a new version and an explicit migration decision.
 
+## Mutating action contracts
+
+- `switch_scene(sceneName)` accepts an exact loadable Unity scene name. Do not add aliases, spelling correction, trimming, or alternate-scene fallback.
+- Validate built-in scenes through Unity and installed DLC scenes through the game's DLC registry before starting a transition.
+- `open_level(levelPath)` accepts only an absolute path to an existing `.adofai` file and requires the current scene to be `scnEditor`. It must not switch scenes automatically or reinterpret the value as an official level ID.
+- Both actions must use the game's unsaved-editor confirmation flow. Return `started` when the action starts synchronously and `awaiting_confirmation` when the game is waiting for the user.
+
 ## Build and manual verification
 
 ```powershell
@@ -101,5 +111,5 @@ dotnet build -c Release -p:DeployMod=true
 - `out/ADOFAILoom` must contain only `ADOFAILoom.dll` and `Info.json`.
 - Deployment must recreate `Mods/ADOFAILoom` so obsolete files cannot survive an upgrade.
 - Verify protocol behavior with direct HTTP requests, MCP Inspector, UMM logs, and manual in-game checks. Never create automated test code.
-- Manually cover initialize, initialized notification, tools/list, tools/call, malformed requests, invalid headers, menu, level select, custom level select, editor, gameplay, pause, disable, and shutdown.
+- Manually cover initialize, initialized notification, tools/list, all three tools, malformed requests, invalid headers, scene switching, editor confirmation, valid/invalid level paths, menu, level select, custom level select, editor, gameplay, pause, disable, and shutdown.
 - Update `README.md` whenever the endpoint, port, versions, tool contract, build behavior, or client configuration changes.

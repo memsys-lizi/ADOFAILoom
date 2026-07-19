@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using ADOFAILoom.Actions;
 using ADOFAILoom.Mcp.Protocol;
 using ADOFAILoom.Mcp.Tooling;
 using ADOFAILoom.Mcp.Transport;
@@ -11,9 +12,13 @@ namespace ADOFAILoom.Mcp
     {
         public static McpServer Create(MainThreadDispatcher dispatcher, Action<string> log)
         {
+            var sceneSwitcher = new SceneSwitcher(dispatcher);
+            var levelOpener = new LevelOpener(dispatcher);
             var services = new Dictionary<Type, object>
             {
-                [typeof(MainThreadDispatcher)] = dispatcher
+                [typeof(MainThreadDispatcher)] = dispatcher,
+                [typeof(SceneSwitcher)] = sceneSwitcher,
+                [typeof(LevelOpener)] = levelOpener
             };
             McpToolRegistry tools = McpToolRegistry.Discover(
                 typeof(McpServerFactory).Assembly,

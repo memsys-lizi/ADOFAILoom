@@ -62,6 +62,50 @@ http://127.0.0.1:39473/mcp
 
 工具调用同时返回 JSON 文本内容和 `structuredContent`。工具被标记为只读、非破坏、幂等且不访问开放世界。
 
+### `switch_scene`
+
+切换到准确的 Unity 场景名：
+
+```json
+{
+  "sceneName": "scnEditor"
+}
+```
+
+常见场景名包括：
+
+- `scnEditor`：关卡编辑器
+- `scnCLS`：自定义关卡选择
+- `scnLevelSelect`：官方选关
+
+工具会验证场景是否真实存在于当前游戏安装中，不提供别名、拼写修正或替代场景。返回：
+
+```json
+{
+  "sceneName": "scnEditor",
+  "status": "started"
+}
+```
+
+如果编辑器存在未保存内容，游戏会显示自己的确认窗口，此时返回 `status=awaiting_confirmation`。工具被标记为修改状态、破坏性、非幂等且不访问开放世界。
+
+### `open_level`
+
+在当前关卡编辑器中打开现有 `.adofai` 文件：
+
+```json
+{
+  "levelPath": "D:\\Levels\\Example\\main.adofai"
+}
+```
+
+- 必须传入绝对文件路径。
+- 文件必须存在且扩展名必须为 `.adofai`。
+- 当前场景必须是 `scnEditor`；工具不会自动切换场景，也不会把参数解释成官方关卡 ID。
+- 有未保存内容时返回 `status=awaiting_confirmation`，否则返回 `status=started`。
+
+该工具会读取用户指定的本地文件并替换当前编辑器内容，因此标记为修改状态、破坏性、非幂等和开放世界。
+
 ## 客户端配置
 
 所有客户端都连接同一个 URL，并通过 MCP `initialize` 与 `tools/list` 自动发现服务能力和工具定义。
@@ -131,6 +175,7 @@ ADOFAILoom/
    ├─ ADOFAILoom.Mod.csproj
    ├─ Info.json
    ├─ Main.cs
+   ├─ Actions/
    ├─ Mcp/
    │  ├─ Protocol/
    │  ├─ Tooling/
@@ -178,4 +223,7 @@ MCP-Protocol-Version: 2025-11-25  # initialize 之后的请求
 - GET 和 DELETE 返回 405；非 loopback Origin 返回 403。
 - 非 JSON、缺失 Accept、缺失协议版本、超过 64 KiB 和非法参数明确失败。
 - 主菜单、选关、自定义选关、编辑器、游玩和暂停状态正确。
+- `switch_scene` 能切换 `scnEditor`、`scnCLS` 等有效场景，并拒绝不存在的场景。
+- `open_level` 能打开有效 `.adofai`，并拒绝相对路径、错误扩展名、不存在的文件和非编辑器场景。
+- 编辑器有未保存内容时，两项操作返回 `awaiting_confirmation` 并交由游戏确认窗口决定是否继续。
 - 禁用或卸载 Mod 后端点立即停止。
