@@ -10,11 +10,35 @@ namespace ADOFAILoom.Threading
         private readonly ConcurrentQueue<IMainThreadRequest> requests =
             new ConcurrentQueue<IMainThreadRequest>();
 
-        public Task<T> InvokeAsync<T>(Func<T> action, CancellationToken cancellationToken)
+        public async Task<T> InvokeAsync<T>(
+            Func<T> action,
+            TimeSpan timeout,
+            CancellationToken cancellationToken)
         {
-            var request = new MainThreadRequest<T>(action, cancellationToken);
-            requests.Enqueue(request);
-            return request.Task;
+            if (timeout <= TimeSpan.Zero)
+            {
+                throw new ArgumentOutOfRangeException(nameof(timeout));
+            }
+
+            using (var timeoutSource = new CancellationTokenSource(timeout))
+            using (var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(
+                       cancellationToken,
+                       timeoutSource.Token))
+            {
+                var request = new MainThreadRequest<T>(action, linkedSource.Token);
+                requests.Enqueue(request);
+
+                try
+                {
+                    return await request.Task.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (
+                    timeoutSource.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+                {
+                    throw new TimeoutException(
+                        $"The Unity main-thread operation exceeded {timeout.TotalSeconds:0.###} seconds.");
+                }
+            }
         }
 
         public void ProcessPending()

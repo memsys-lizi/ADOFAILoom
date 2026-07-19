@@ -1,4 +1,5 @@
-using ADOFAILoom.Bridge;
+using System;
+using ADOFAILoom.Mcp;
 using ADOFAILoom.Threading;
 using UnityModManagerNet;
 
@@ -7,17 +8,14 @@ namespace ADOFAILoom
     public static class Main
     {
         private static readonly MainThreadDispatcher Dispatcher = new MainThreadDispatcher();
-        private static GameBridgeServer? bridgeServer;
-
-        public static UnityModManager.ModEntry? Mod { get; private set; }
+        private static McpServer? server;
 
         public static bool Load(UnityModManager.ModEntry modEntry)
         {
-            Mod = modEntry;
             modEntry.OnToggle = OnToggle;
             modEntry.OnUpdate = OnUpdate;
             modEntry.OnUnload = OnUnload;
-            modEntry.Logger.Log("ADOFAILoom game bridge loaded / 游戏桥接已加载");
+            modEntry.Logger.Log("ADOFAILoom loaded / ADOFAILoom 已加载");
             return true;
         }
 
@@ -25,24 +23,29 @@ namespace ADOFAILoom
         {
             if (!enabled)
             {
-                StopBridge();
-                modEntry.Logger.Log("Game bridge disabled / 游戏桥接已关闭");
+                StopServer();
+                modEntry.Logger.Log("MCP server disabled / MCP 服务已关闭");
                 return true;
             }
 
             try
             {
-                bridgeServer ??= new GameBridgeServer(
+                if (server != null)
+                {
+                    throw new InvalidOperationException("The MCP server is already enabled.");
+                }
+
+                server = McpServerFactory.Create(
                     Dispatcher,
                     message => modEntry.Logger.Log(message));
-                bridgeServer.Start();
-                modEntry.Logger.Log("Game bridge listening on ADOFAILoom.GameBridge.v1");
+                server.Start();
+                modEntry.Logger.Log("MCP server listening at http://127.0.0.1:39473/mcp");
                 return true;
             }
-            catch (System.Exception exception)
+            catch (Exception exception)
             {
-                StopBridge();
-                modEntry.Logger.Error($"Unable to start game bridge: {exception}");
+                StopServer();
+                modEntry.Logger.Error($"Unable to enable MCP server: {exception}");
                 return false;
             }
         }
@@ -54,15 +57,14 @@ namespace ADOFAILoom
 
         private static bool OnUnload(UnityModManager.ModEntry modEntry)
         {
-            StopBridge();
-            Mod = null;
+            StopServer();
             return true;
         }
 
-        private static void StopBridge()
+        private static void StopServer()
         {
-            bridgeServer?.Dispose();
-            bridgeServer = null;
+            server?.Dispose();
+            server = null;
             Dispatcher.CancelPending();
         }
     }
