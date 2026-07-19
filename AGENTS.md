@@ -25,10 +25,12 @@ src/Mod/
 ├─ Actions/      mutating game operations and their result DTOs
 ├─ Mcp/
 │  ├─ Protocol/  MCP and JSON-RPC routing and DTOs
+│  ├─ Resources/ embedded visual-design guide catalog
 │  ├─ Transport/ loopback Streamable HTTP transport
 │  ├─ Tooling/   reflection discovery, schema generation, and invocation framework
-│  └─ Tools/     one implementation file per public MCP tool
+│  └─ Tools/     domain subdirectories, one implementation file per public MCP tool
 ├─ State/        state DTOs, exact mode mapping, Unity state capture
+├─ Settings/     UMM settings persistence and tool-switch panel
 └─ Threading/    Unity main-thread dispatcher
 ```
 
@@ -46,14 +48,25 @@ src/Mod/
 - Tool methods contain business logic only and return serializable DTOs; they must not construct JSON-RPC or MCP response envelopes.
 - Tool containers use constructor injection. Every dependency must be registered explicitly in `McpServerFactory`; unresolved dependencies and ambiguous constructors are startup errors.
 - Duplicate tool names, missing descriptions, unsupported parameter types, invalid signatures, and non-value return types are startup errors.
+- Every public tool must have an exact category, Chinese title, and Chinese purpose description in `McpToolPresentationCatalog`; uncategorized tools are startup errors.
 - Parameters are required unless explicitly optional. Reject unknown, missing, null, and incorrectly typed arguments.
 - `CancellationToken` is injected and excluded from public input schemas.
-- Public tools are `get_game_state`, `switch_scene`, `open_level`, `get_editor_state`, `list_visual_events`, the `add/update/remove_camera_move_events` family, the `add/update/remove_filter_events` family, `undo_editor`, `redo_editor`, and `save_level`.
+- Public tools include game state and navigation, editor state and workflow, native preview and PNG capture, plus typed add/update/remove families for camera, filters, screen effects, backgrounds, tracks, text, image decorations, decoration motion, objects, and particles.
+- Keep tool implementations grouped under `Tools/Game`, `Tools/Navigation`, and `Tools/Editor/<Domain>`. Every file contains exactly one public MCP tool.
 - Mark `get_game_state` read-only, non-destructive, idempotent, and closed-world.
 - Mark editor-state and visual-event listing tools read-only, non-destructive, idempotent, and closed-world.
 - Mark `switch_scene` and `open_level` mutating, destructive, and non-idempotent. `open_level` is open-world because it reads a user-provided file path.
 - Mark visual-event mutations and editor history operations destructive, non-idempotent, and closed-world. Mark `save_level` destructive, idempotent, and open-world.
 - Successful calls return both JSON text content and `structuredContent`.
+- The shared `McpToolAvailability` service controls both `tools/list` and `tools/call`. A disabled tool must be absent from discovery and rejected on invocation; never leave a display-only switch.
+
+## UMM settings panel
+
+- Load and save disabled tool names through UMM `ModSettings`; do not create a second configuration file or a machine-specific path.
+- Show every MCP tool with a leading toggle, Chinese title, exact protocol name, and concise Chinese purpose description.
+- Group tools into stable domain categories. Provide global and per-category enable/disable controls and keep the long list inside its own scroll view.
+- Tool switches apply immediately to new MCP discovery and invocation requests. Documentation must tell users to refresh the client tool list after a change.
+- Persist exact disabled tool names. Unknown or duplicate names in persisted configuration are invalid configuration and must fail explicitly.
 
 ## Unity lifecycle and threading
 
@@ -72,7 +85,8 @@ src/Mod/
 - Validate every non-empty `Origin` and allow loopback origins only.
 - Require JSON UTF-8 content, both MCP Accept media types, a supported protocol version after initialization, and a maximum 64 KiB body.
 - Supported versions are `2025-03-26`, `2025-06-18`, and `2025-11-25`.
-- Support `initialize`, `ping`, `notifications/initialized`, `tools/list`, and `tools/call`.
+- Support `initialize`, `ping`, `notifications/initialized`, `tools/list`, `tools/call`, `resources/list`, and `resources/read`.
+- Embed the Markdown visual-design guides into the Mod DLL and expose them through immutable `adofailoom://guides/*` resources. Do not add loose documentation files to the distributed Mod folder.
 - Use JSON-RPC errors for malformed requests, unsupported methods, and invalid parameters. Use `isError=true` tool results only for failures after valid tool invocation begins.
 - Catch exceptions only at transport and invocation boundaries. Expected shutdown/disconnect exceptions may be quiet; every unexpected exception must be logged in full and must stop or fail the affected operation.
 
@@ -107,6 +121,8 @@ Current schema version is `2`:
 - Validate the entire batch before mutation and use one `SaveStateScope` per successful batch. Preserve request order and refresh affected event indicators and floors through the editor APIs.
 - Do not call `PropertyInfo.Validate` for MCP input because it clamps. Reject values outside the runtime metadata range, invalid enum names, unsupported first-floor placement, locked events, preview mode, path lock, empty batches, and duplicate references.
 - Camera tools support only `MoveCamera`. Filter tools support only standard `SetFilter`; do not accept `SetFilterAdvanced` property dictionaries.
+- Visual event coverage includes `Flash`, `Bloom`, `ShakeScreen`, `ScreenTile`, `ScreenScroll`, `HallOfMirrors`, `SetFrameRate`, `CustomBackground`, track appearance/motion/geometry, text, image/object/particle decorations, and their typed controller events.
+- `start_visual_preview` and `stop_visual_preview` use the native editor play mode. `capture_preview_frame` is valid only during preview and returns standard MCP `image/png` content plus structured metadata.
 - Visual mutations remain in editor memory until `save_level` is called. `save_level` must reject missing/non-`.adofai` paths and verify the written JSON revision before reporting success.
 
 ## Build and manual verification
@@ -118,7 +134,7 @@ dotnet build -c Release -p:DeployMod=true
 
 - Builds must complete with zero errors and zero warnings.
 - `out/ADOFAILoom` must contain only `ADOFAILoom.dll` and `Info.json`.
-- Deployment must recreate `Mods/ADOFAILoom` so obsolete files cannot survive an upgrade.
+- Deployment must recreate `Mods/ADOFAILoom` so obsolete files cannot survive an upgrade, while preserving the UMM-generated `Settings.xml` tool preferences.
 - Verify protocol behavior with direct HTTP requests, MCP Inspector, UMM logs, and manual in-game checks. Never create automated test code.
 - Manually cover initialize, initialized notification, tools/list, all public tools, malformed requests, invalid headers, scene switching, editor confirmation, valid/invalid level paths, editor revisions and stale references, camera/filter CRUD, undo/redo/save, menu, level select, custom level select, editor, gameplay, pause, disable, and shutdown.
 - Update `README.md` whenever the endpoint, port, versions, tool contract, build behavior, or client configuration changes.

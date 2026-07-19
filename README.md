@@ -26,6 +26,8 @@ out/ADOFAILoom/
 └─ Info.json
 ```
 
+UMM 在第一次保存工具开关后会在已安装的 Mod 目录生成 `Settings.xml`。它是用户配置，不属于发行包；开发部署会在清理旧 Mod 文件时专门保留它。
+
 将整个 `ADOFAILoom` 文件夹复制到游戏的 UMM Mods 目录：
 
 ```text
@@ -39,6 +41,22 @@ http://127.0.0.1:39473/mcp
 ```
 
 建议先启动游戏，再让 MCP 客户端连接或刷新工具列表。
+
+## UMM 工具开关面板
+
+在 Unity Mod Manager 中展开 ADOFAILoom 设置即可看到“MCP 工具开关”区域：
+
+- 92 个工具按游戏状态、场景与关卡、编辑器读取、镜头、滤镜、屏幕效果、背景、轨道、文本、装饰、对象、粒子、预览和工作流分类。
+- 每个工具前都有独立开关，并显示中文名称、准确的 MCP 工具名和用途说明。
+- 支持全部启用、全部禁用，以及每个分类单独全开或全关。
+- 修改后立即影响新的 `tools/list` 和 `tools/call`：关闭的工具不会被客户端发现，也不能继续发起新调用。
+- 开关状态由 UMM 设置持久化。修改后请在 Codex、Cursor 或 Claude 中刷新 MCP 工具列表。
+
+开关只控制工具，不会关闭 MCP Resources，也不会修改关卡内容。禁用全部工具是允许的，此时服务仍可连接并读取内置视效指南。
+
+## 视效制作知识
+
+项目的 Workshop 数据研究、运镜、装饰、轨道、光效、组合配方和 AI 审查规范位于 [docs/visual-effects/README.md](docs/visual-effects/README.md)。这些 Markdown 会嵌入唯一的 Mod DLL，并通过标准 MCP `resources/list`、`resources/read` 暴露为 `adofailoom://guides/*`；客户端无需访问仓库文件即可读取。这套知识只负责在谱师给出 floor、段落和强调点后实现视觉效果，不负责分析音频或替谱师判断节奏。
 
 ## 当前工具
 
@@ -213,6 +231,34 @@ http://127.0.0.1:39473/mcp
 
 滤镜名、缓动名、强度和持续时间严格按当前游戏事件元数据验证，不纠正大小写、不 trim、不 clamp。当前版本只支持标准 `SetFilter`，不接受 `SetFilterAdvanced` 的动态属性。
 
+### 完整视效事件覆盖
+
+当前版本共有 92 个公共工具。所有事件写入均提供严格类型化的 `add_*`、`update_*`、`remove_*` 三件套，并按以下领域分组：
+
+- `Camera`：`MoveCamera`。
+- `Filters`：标准 `SetFilter`。
+- `Screen`：`Flash`、`Bloom`、`ShakeScreen`、`ScreenTile`、`ScreenScroll`、`HallOfMirrors`、`SetFrameRate`。
+- `Background`：`CustomBackground`。
+- `Track`：`ColorTrack`、`AnimateTrack`、`RecolorTrack`、`MoveTrack`、`PositionTrack`、`TileDimensions`、`SetFloorIcon`。
+- `Text`：`AddText` 装饰、`SetText`、`SetDefaultText`。
+- `Decorations`：图片 `AddDecoration` 与 `MoveDecorations`。
+- `Objects`：`AddObject` 装饰与 `SetObject`。
+- `Particles`：`AddParticle` 装饰、`EmitParticle` 与 `SetParticle`。
+
+列表严格对应当前游戏的事件元数据。`SetFilterAdvanced` 的参数是动态着色器属性字典，与项目“不暴露任意属性字典”的约束冲突，因此明确不提供；不会用非类型化接口绕过。
+
+### 原生预览与截图
+
+- `start_visual_preview(expectedRevision, floor)` 从准确的零基 floor 启动编辑器原生预览。
+- `stop_visual_preview()` 停止当前预览并回到编辑模式。
+- `capture_preview_frame(width=1280, height=720)` 仅在预览中可用，返回标准 MCP `image/png` 内容，同时在 `structuredContent` 中给出分辨率、当前 floor 和 revision。
+
+截图最大为 1920×1080 且总像素不超过 2,073,600。它不是磁盘文件，不会污染关卡目录或 Mod 目录。
+
+### MCP 视效指南 Resources
+
+服务在 `initialize` 中声明 `resources` 能力。`resources/list` 返回九份内置 Markdown 指南，URI 位于 `adofailoom://guides/*`；`resources/read` 按准确 URI 读取。资源是只读、不可订阅且不会动态变化的，涵盖基础原则、镜头、轨道、装饰、光效、组合配方、AI 清单和 Workshop 样本研究。
+
 ### 撤销、重做与保存
 
 - `undo_editor(expectedRevision)` 调用编辑器现有撤销栈。
@@ -225,7 +271,7 @@ http://127.0.0.1:39473/mcp
 
 ## 客户端配置
 
-所有客户端都连接同一个 URL，并通过 MCP `initialize` 与 `tools/list` 自动发现服务能力和工具定义。
+所有客户端都连接同一个 URL，并通过 MCP `initialize`、`tools/list`、`resources/list` 自动发现服务能力、工具定义和视效指南。
 
 ### Codex
 
@@ -306,10 +352,15 @@ ADOFAILoom/
    ├─ Actions/
    ├─ Mcp/
    │  ├─ Protocol/
+   │  ├─ Resources/
    │  ├─ Tooling/
    │  ├─ Tools/
+   │  │  ├─ Game/
+   │  │  ├─ Navigation/
+   │  │  └─ Editor/{Background,Camera,Decorations,Filters,Objects,Particles,Preview,Screen,State,Text,Track,Workflow}/
    │  └─ Transport/
    ├─ State/
+   ├─ Settings/
    ├─ Threading/
    └─ Properties/
 ```
@@ -344,7 +395,7 @@ Accept: application/json, text/event-stream
 MCP-Protocol-Version: 2025-11-25  # initialize 之后的请求
 ```
 
-依次验证 `initialize`、`notifications/initialized`、`tools/list` 和 `tools/call`。服务显式支持 `2025-03-26`、`2025-06-18`、`2025-11-25`。
+依次验证 `initialize`、`notifications/initialized`、`tools/list`、`resources/list`、`resources/read` 和 `tools/call`。服务显式支持 `2025-03-26`、`2025-06-18`、`2025-11-25`。
 
 还应手工确认：
 
@@ -355,7 +406,11 @@ MCP-Protocol-Version: 2025-11-25  # initialize 之后的请求
 - `open_level` 能打开有效 `.adofai`，并拒绝相对路径、错误扩展名、不存在的文件和非编辑器场景。
 - 编辑器有未保存内容时，两项操作返回 `awaiting_confirmation` 并交由游戏确认窗口决定是否继续。
 - `get_editor_state` 和 `list_visual_events` 在非编辑器场景、编辑器加载中明确失败，并返回一致的当前 revision。
-- 镜头和滤镜批量新增保持请求顺序且只产生一个撤销步骤；更新和删除拒绝过期、错误类型、错误集合及锁定事件引用。
+- 所有视效事件家族的批量新增保持请求顺序且只产生一个撤销步骤；更新和删除拒绝过期、错误类型、错误集合及锁定事件引用。
 - 所有视觉参数拒绝错误大小写、未知嵌套字段、越界数值、空批次和不支持的首楼层位置，不执行 trim、clamp 或替代查找。
 - `undo_editor`、`redo_editor` 正确更新 revision；`save_level` 只在磁盘 JSON 与当前 revision 一致时报告成功。
+- 原生预览严格从请求的 floor 启动；非预览时截图失败，预览截图同时返回 PNG 图片内容和结构化元数据。
+- 九份 `adofailoom://guides/*` 资源均可列出和读取，未知 URI 返回 JSON-RPC `-32002`。
+- UMM 中关闭工具后，它立即从 `tools/list` 消失并拒绝调用；重新启用并刷新客户端后恢复。
+- 全局和分类开关正确保存，重启游戏后仍保持相同状态。
 - 禁用或卸载 Mod 后端点立即停止。

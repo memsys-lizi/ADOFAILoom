@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using ADOFAILoom.Mcp.Resources;
 using ADOFAILoom.Mcp.Tooling;
 
 namespace ADOFAILoom.Mcp.Protocol
@@ -13,72 +14,94 @@ namespace ADOFAILoom.Mcp.Protocol
         private const int InvalidRequest = -32600;
         private const int MethodNotFound = -32601;
         private const int InvalidParams = -32602;
+        private const int ResourceNotFound = -32002;
 
         private readonly McpToolRegistry tools;
+        private readonly EmbeddedGuideCatalog resources;
         private readonly Action<string> log;
 
-        public McpRequestRouter(McpToolRegistry tools, Action<string> log)
+        public McpRequestRouter(
+            McpToolRegistry tools,
+            EmbeddedGuideCatalog resources,
+            Action<string> log
+        )
         {
             this.tools = tools;
+            this.resources = resources;
             this.log = log;
         }
 
         public async Task<McpHttpResponse> HandleAsync(
             byte[] body,
             string? protocolVersion,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken
+        )
         {
             JsonDocument document;
             try
             {
-                document = JsonDocument.Parse(body, new JsonDocumentOptions
-                {
-                    AllowTrailingCommas = false,
-                    CommentHandling = JsonCommentHandling.Disallow,
-                    MaxDepth = 64
-                });
+                document = JsonDocument.Parse(
+                    body,
+                    new JsonDocumentOptions
+                    {
+                        AllowTrailingCommas = false,
+                        CommentHandling = JsonCommentHandling.Disallow,
+                        MaxDepth = 64,
+                    }
+                );
             }
             catch (JsonException exception)
             {
-                return Error(
-                    400,
-                    null,
-                    ParseError,
-                    "Parse error",
-                    exception.Message);
+                return Error(400, null, ParseError, "Parse error", exception.Message);
             }
 
             using (document)
             {
                 JsonElement root = document.RootElement;
-                if (root.ValueKind != JsonValueKind.Object ||
-                    !TryGetExactString(root, "jsonrpc", "2.0") ||
-                    !TryGetRequiredString(root, "method", out string? method))
+                if (
+                    root.ValueKind != JsonValueKind.Object
+                    || !TryGetExactString(root, "jsonrpc", "2.0")
+                    || !TryGetRequiredString(root, "method", out string? method)
+                )
                 {
                     return Error(400, null, InvalidRequest, "Invalid Request");
                 }
 
                 bool hasId = root.TryGetProperty("id", out JsonElement id);
-                if (hasId && id.ValueKind != JsonValueKind.String &&
-                    id.ValueKind != JsonValueKind.Number)
+                if (
+                    hasId
+                    && id.ValueKind != JsonValueKind.String
+                    && id.ValueKind != JsonValueKind.Number
+                )
                 {
                     return Error(400, null, InvalidRequest, "Invalid Request", "Invalid id.");
                 }
 
-                if (root.TryGetProperty("params", out JsonElement parameters) &&
-                    parameters.ValueKind != JsonValueKind.Object)
+                if (
+                    root.TryGetProperty("params", out JsonElement parameters)
+                    && parameters.ValueKind != JsonValueKind.Object
+                )
                 {
                     return hasId
-                        ? Error(200, id, InvalidParams, "Invalid params", "params must be an object.")
+                        ? Error(
+                            200,
+                            id,
+                            InvalidParams,
+                            "Invalid params",
+                            "params must be an object."
+                        )
                         : McpHttpResponse.Empty(400);
                 }
 
-                if (!string.Equals(method, "initialize", StringComparison.Ordinal) &&
-                    !McpProtocol.IsSupportedVersion(protocolVersion))
+                if (
+                    !string.Equals(method, "initialize", StringComparison.Ordinal)
+                    && !McpProtocol.IsSupportedVersion(protocolVersion)
+                )
                 {
-                    string detail = protocolVersion == null
-                        ? $"Missing required {McpProtocol.ProtocolVersionHeader} header."
-                        : $"Unsupported MCP protocol version '{protocolVersion}'.";
+                    string detail =
+                        protocolVersion == null
+                            ? $"Missing required {McpProtocol.ProtocolVersionHeader} header."
+                            : $"Unsupported MCP protocol version '{protocolVersion}'.";
                     return hasId
                         ? Error(400, id, InvalidRequest, "Invalid Request", detail)
                         : McpHttpResponse.Empty(400);
@@ -98,11 +121,12 @@ namespace ADOFAILoom.Mcp.Protocol
                     case "tools/list":
                         return HandleToolsList(id, root);
                     case "tools/call":
-                        return await HandleToolsCallAsync(
-                                id,
-                                root,
-                                cancellationToken)
+                        return await HandleToolsCallAsync(id, root, cancellationToken)
                             .ConfigureAwait(false);
+                    case "resources/list":
+                        return HandleResourcesList(id, root);
+                    case "resources/read":
+                        return HandleResourceRead(id, root);
                     default:
                         return Error(200, id, MethodNotFound, "Method not found", method);
                 }
@@ -133,34 +157,38 @@ namespace ADOFAILoom.Mcp.Protocol
                     id,
                     InvalidParams,
                     "Invalid params",
-                    "initialize requires parameters.");
+                    "initialize requires parameters."
+                );
             }
 
-            if (!McpRequestParameters.TryValidate(
+            if (
+                !McpRequestParameters.TryValidate(
                     parameters,
                     out string? parameterError,
                     "protocolVersion",
                     "capabilities",
-                    "clientInfo"))
+                    "clientInfo"
+                )
+            )
             {
                 return Error(200, id, InvalidParams, "Invalid params", parameterError);
             }
 
-            if (!TryGetRequiredString(
-                    parameters,
-                    "protocolVersion",
-                    out string? requestedVersion) ||
-                !parameters.TryGetProperty("capabilities", out JsonElement capabilities) ||
-                capabilities.ValueKind != JsonValueKind.Object ||
-                !parameters.TryGetProperty("clientInfo", out JsonElement clientInfo) ||
-                clientInfo.ValueKind != JsonValueKind.Object)
+            if (
+                !TryGetRequiredString(parameters, "protocolVersion", out string? requestedVersion)
+                || !parameters.TryGetProperty("capabilities", out JsonElement capabilities)
+                || capabilities.ValueKind != JsonValueKind.Object
+                || !parameters.TryGetProperty("clientInfo", out JsonElement clientInfo)
+                || clientInfo.ValueKind != JsonValueKind.Object
+            )
             {
                 return Error(
                     200,
                     id,
                     InvalidParams,
                     "Invalid params",
-                    "initialize requires protocolVersion, capabilities, and clientInfo.");
+                    "initialize requires protocolVersion, capabilities, and clientInfo."
+                );
             }
 
             string negotiatedVersion = McpProtocol.NegotiateVersion(requestedVersion!);
@@ -178,46 +206,96 @@ namespace ADOFAILoom.Mcp.Protocol
         {
             if (!TryValidateOptionalParameters(root, out string? parameterError))
             {
-                return Error(
-                    200,
-                    id,
-                    InvalidParams,
-                    "Invalid params",
-                    parameterError);
+                return Error(200, id, InvalidParams, "Invalid params", parameterError);
             }
 
             return Success(id, new McpToolsListResult(tools.Definitions));
         }
 
-        private async Task<McpHttpResponse> HandleToolsCallAsync(
-            JsonElement id,
-            JsonElement root,
-            CancellationToken cancellationToken)
+        private McpHttpResponse HandleResourcesList(JsonElement id, JsonElement root)
         {
-            if (!root.TryGetProperty("params", out JsonElement parameters) ||
-                !TryGetRequiredString(parameters, "name", out string? name))
+            if (!TryValidateOptionalParameters(root, out string? parameterError))
+            {
+                return Error(200, id, InvalidParams, "Invalid params", parameterError);
+            }
+
+            return Success(id, new McpResourcesListResult(resources.Definitions));
+        }
+
+        private McpHttpResponse HandleResourceRead(JsonElement id, JsonElement root)
+        {
+            if (!root.TryGetProperty("params", out JsonElement parameters))
             {
                 return Error(
                     200,
                     id,
                     InvalidParams,
                     "Invalid params",
-                    "tools/call requires a tool name.");
+                    "resources/read requires parameters."
+                );
             }
 
-            if (!McpRequestParameters.TryValidate(
+            if (!McpRequestParameters.TryValidate(parameters, out string? parameterError, "uri"))
+            {
+                return Error(200, id, InvalidParams, "Invalid params", parameterError);
+            }
+
+            if (!TryGetRequiredString(parameters, "uri", out string? uri))
+            {
+                return Error(
+                    200,
+                    id,
+                    InvalidParams,
+                    "Invalid params",
+                    "resources/read requires a non-empty uri."
+                );
+            }
+
+            if (!resources.TryRead(uri!, out McpTextResourceContents? contents) || contents == null)
+            {
+                return Error(
+                    200,
+                    id,
+                    ResourceNotFound,
+                    "Resource not found",
+                    new Dictionary<string, string> { ["uri"] = uri! }
+                );
+            }
+
+            return Success(id, new McpResourceReadResult(contents));
+        }
+
+        private async Task<McpHttpResponse> HandleToolsCallAsync(
+            JsonElement id,
+            JsonElement root,
+            CancellationToken cancellationToken
+        )
+        {
+            if (
+                !root.TryGetProperty("params", out JsonElement parameters)
+                || !TryGetRequiredString(parameters, "name", out string? name)
+            )
+            {
+                return Error(
+                    200,
+                    id,
+                    InvalidParams,
+                    "Invalid params",
+                    "tools/call requires a tool name."
+                );
+            }
+
+            if (
+                !McpRequestParameters.TryValidate(
                     parameters,
                     out string? parameterError,
                     "name",
                     "arguments",
-                    "task"))
+                    "task"
+                )
+            )
             {
-                return Error(
-                    200,
-                    id,
-                    InvalidParams,
-                    "Invalid params",
-                    parameterError);
+                return Error(200, id, InvalidParams, "Invalid params", parameterError);
             }
 
             if (parameters.TryGetProperty("task", out _))
@@ -227,12 +305,15 @@ namespace ADOFAILoom.Mcp.Protocol
                     id,
                     InvalidParams,
                     "Invalid params",
-                    "This server does not support task-augmented tool execution.");
+                    "This server does not support task-augmented tool execution."
+                );
             }
 
             JsonElement? arguments = null;
-            if (parameters.TryGetProperty("arguments", out JsonElement argumentElement) &&
-                argumentElement.ValueKind != JsonValueKind.Null)
+            if (
+                parameters.TryGetProperty("arguments", out JsonElement argumentElement)
+                && argumentElement.ValueKind != JsonValueKind.Null
+            )
             {
                 if (argumentElement.ValueKind != JsonValueKind.Object)
                 {
@@ -241,7 +322,8 @@ namespace ADOFAILoom.Mcp.Protocol
                         id,
                         InvalidParams,
                         "Invalid params",
-                        "Tool arguments must be an object.");
+                        "Tool arguments must be an object."
+                    );
                 }
 
                 arguments = argumentElement;
@@ -249,20 +331,23 @@ namespace ADOFAILoom.Mcp.Protocol
 
             if (!tools.TryGet(name!, out McpToolInvoker? invoker) || invoker == null)
             {
-                return Error(
-                    200,
-                    id,
-                    InvalidParams,
-                    "Invalid params",
-                    $"Unknown tool '{name}'.");
+                return Error(200, id, InvalidParams, "Invalid params", $"Unknown tool '{name}'.");
             }
 
             try
             {
-                JsonElement result = await invoker
+                McpToolInvocationResult result = await invoker
                     .InvokeAsync(arguments, cancellationToken)
                     .ConfigureAwait(false);
-                return Success(id, McpToolCallResult.Success(result));
+                McpToolCallResult callResult =
+                    result.ImageData == null
+                        ? McpToolCallResult.Success(result.StructuredContent)
+                        : McpToolCallResult.SuccessWithImage(
+                            result.StructuredContent,
+                            result.ImageData,
+                            result.ImageMimeType!
+                        );
+                return Success(id, callResult);
             }
             catch (McpInvalidArgumentsException exception)
             {
@@ -283,9 +368,7 @@ namespace ADOFAILoom.Mcp.Protocol
             }
         }
 
-        private static bool TryValidateOptionalParameters(
-            JsonElement root,
-            out string? error)
+        private static bool TryValidateOptionalParameters(JsonElement root, out string? error)
         {
             if (!root.TryGetProperty("params", out JsonElement parameters))
             {
@@ -299,21 +382,25 @@ namespace ADOFAILoom.Mcp.Protocol
         private static bool TryGetExactString(
             JsonElement element,
             string propertyName,
-            string expected)
+            string expected
+        )
         {
-            return element.TryGetProperty(propertyName, out JsonElement property) &&
-                   property.ValueKind == JsonValueKind.String &&
-                   string.Equals(property.GetString(), expected, StringComparison.Ordinal);
+            return element.TryGetProperty(propertyName, out JsonElement property)
+                && property.ValueKind == JsonValueKind.String
+                && string.Equals(property.GetString(), expected, StringComparison.Ordinal);
         }
 
         private static bool TryGetRequiredString(
             JsonElement element,
             string propertyName,
-            out string? value)
+            out string? value
+        )
         {
             value = null;
-            if (!element.TryGetProperty(propertyName, out JsonElement property) ||
-                property.ValueKind != JsonValueKind.String)
+            if (
+                !element.TryGetProperty(propertyName, out JsonElement property)
+                || property.ValueKind != JsonValueKind.String
+            )
             {
                 return false;
             }
@@ -327,7 +414,8 @@ namespace ADOFAILoom.Mcp.Protocol
             return McpHttpResponse.Json(
                 200,
                 new JsonRpcSuccessResponse(id, result),
-                McpProtocol.JsonOptions);
+                McpProtocol.JsonOptions
+            );
         }
 
         private static McpHttpResponse Error(
@@ -335,12 +423,14 @@ namespace ADOFAILoom.Mcp.Protocol
             object? id,
             int code,
             string message,
-            object? data = null)
+            object? data = null
+        )
         {
             return McpHttpResponse.Json(
                 statusCode,
                 new JsonRpcErrorResponse(id, code, message, data),
-                McpProtocol.JsonOptions);
+                McpProtocol.JsonOptions
+            );
         }
     }
 }

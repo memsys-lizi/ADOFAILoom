@@ -14,13 +14,14 @@ namespace ADOFAILoom.Mcp.Protocol
 
         public static readonly TimeSpan MainThreadTimeout = TimeSpan.FromSeconds(5);
 
-        private static readonly HashSet<string> SupportedVersions =
-            new HashSet<string>(StringComparer.Ordinal)
-            {
-                "2025-03-26",
-                "2025-06-18",
-                "2025-11-25"
-            };
+        private static readonly HashSet<string> SupportedVersions = new HashSet<string>(
+            StringComparer.Ordinal
+        )
+        {
+            "2025-03-26",
+            "2025-06-18",
+            "2025-11-25",
+        };
 
         public static JsonSerializerOptions JsonOptions { get; } = CreateJsonOptions();
 
@@ -31,9 +32,7 @@ namespace ADOFAILoom.Mcp.Protocol
 
         public static string NegotiateVersion(string requestedVersion)
         {
-            return IsSupportedVersion(requestedVersion)
-                ? requestedVersion
-                : "2025-11-25";
+            return IsSupportedVersion(requestedVersion) ? requestedVersion : "2025-11-25";
         }
 
         private static JsonSerializerOptions CreateJsonOptions()
@@ -45,7 +44,7 @@ namespace ADOFAILoom.Mcp.Protocol
                 AllowTrailingCommas = false,
                 ReadCommentHandling = JsonCommentHandling.Disallow,
                 UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,
-                MaxDepth = 64
+                MaxDepth = 64,
             };
             options.Converters.Add(new JsonStringEnumConverter(null, false));
             return options;

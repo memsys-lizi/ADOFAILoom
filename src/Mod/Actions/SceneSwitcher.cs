@@ -22,25 +22,29 @@ namespace ADOFAILoom.Actions
 
         public Task<SceneSwitchResult> SwitchAsync(
             string sceneName,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken
+        )
         {
             ValidateSceneName(sceneName);
             return dispatcher.InvokeAsync(
                 () => SwitchOnMainThread(sceneName),
                 McpProtocol.MainThreadTimeout,
-                cancellationToken);
+                cancellationToken
+            );
         }
 
         private static SceneSwitchResult SwitchOnMainThread(string sceneName)
         {
             bool isBuiltInScene = Application.CanStreamedLevelBeLoaded(sceneName);
-            bool isInstalledDlcScene = DLCManager.DLCManagers.Any(
-                manager => manager.installed && manager.IsDLCSceneOrLevel(sceneName));
+            bool isInstalledDlcScene = DLCManager.DLCManagers.Any(manager =>
+                manager.installed && manager.IsDLCSceneOrLevel(sceneName)
+            );
             if (!isBuiltInScene && !isInstalledDlcScene)
             {
                 throw new ArgumentException(
                     $"Scene '{sceneName}' is not available in this game installation.",
-                    nameof(sceneName));
+                    nameof(sceneName)
+                );
             }
 
             scrLoader loader = ADOBase.loader;
@@ -66,9 +70,7 @@ namespace ADOFAILoom.Actions
                 editor.CheckUnsavedChanges(StartTransition);
             }
 
-            return new SceneSwitchResult(
-                sceneName,
-                started ? Started : AwaitingConfirmation);
+            return new SceneSwitchResult(sceneName, started ? Started : AwaitingConfirmation);
         }
 
         private static void ValidateSceneName(string sceneName)
@@ -82,14 +84,16 @@ namespace ADOFAILoom.Actions
             {
                 throw new ArgumentException(
                     "Scene name cannot contain leading or trailing whitespace.",
-                    nameof(sceneName));
+                    nameof(sceneName)
+                );
             }
 
             if (sceneName.IndexOf('/') >= 0 || sceneName.IndexOf('\\') >= 0)
             {
                 throw new ArgumentException(
                     "Pass a scene name, not a scene asset path.",
-                    nameof(sceneName));
+                    nameof(sceneName)
+                );
             }
         }
     }

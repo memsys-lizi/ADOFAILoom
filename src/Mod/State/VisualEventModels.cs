@@ -8,7 +8,7 @@ namespace ADOFAILoom.State
     internal enum VisualEventCollection
     {
         LevelEvents,
-        Decorations
+        Decorations,
     }
 
     internal sealed class VisualEventReference
@@ -40,7 +40,8 @@ namespace ADOFAILoom.State
             bool visible,
             bool locked,
             JsonElement properties,
-            IReadOnlyList<string> disabledProperties)
+            IReadOnlyList<string> disabledProperties
+        )
         {
             Reference = reference;
             Floor = floor;
@@ -76,7 +77,8 @@ namespace ADOFAILoom.State
             int total,
             int offset,
             int limit,
-            IReadOnlyList<VisualEventSnapshot> events)
+            IReadOnlyList<VisualEventSnapshot> events
+        )
         {
             Revision = revision;
             Total = total;

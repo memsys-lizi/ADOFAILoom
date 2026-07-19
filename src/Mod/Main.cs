@@ -1,5 +1,10 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using ADOFAILoom.Mcp;
+using ADOFAILoom.Mcp.Tooling;
+using ADOFAILoom.Settings;
 using ADOFAILoom.Threading;
 using UnityModManagerNet;
 
@@ -9,14 +14,41 @@ namespace ADOFAILoom
     {
         private static readonly MainThreadDispatcher Dispatcher = new MainThreadDispatcher();
         private static McpServer? server;
+        private static ToolSettings? settings;
+        private static McpToolAvailability? toolAvailability;
+        private static ToolSettingsPanel? toolSettingsPanel;
 
         public static bool Load(UnityModManager.ModEntry modEntry)
         {
-            modEntry.OnToggle = OnToggle;
-            modEntry.OnUpdate = OnUpdate;
-            modEntry.OnUnload = OnUnload;
-            modEntry.Logger.Log("ADOFAILoom loaded / ADOFAILoom 已加载");
-            return true;
+            try
+            {
+                IReadOnlyList<McpToolPresentation> presentations =
+                    McpToolPresentationCatalog.Discover(Assembly.GetExecutingAssembly());
+                settings = ToolSettings.LoadStrict(modEntry);
+                toolAvailability = new McpToolAvailability(
+                    presentations.Select(tool => tool.Name),
+                    settings.DisabledTools
+                );
+                toolSettingsPanel = new ToolSettingsPanel(presentations, toolAvailability);
+
+                modEntry.OnToggle = OnToggle;
+                modEntry.OnUpdate = OnUpdate;
+                modEntry.OnGUI = OnGUI;
+                modEntry.OnSaveGUI = OnSaveGUI;
+                modEntry.OnUnload = OnUnload;
+                modEntry.Logger.Log(
+                    $"ADOFAILoom loaded with {presentations.Count} configurable MCP tools."
+                );
+                return true;
+            }
+            catch (Exception exception)
+            {
+                settings = null;
+                toolAvailability = null;
+                toolSettingsPanel = null;
+                modEntry.Logger.Error($"Unable to load ADOFAILoom settings: {exception}");
+                return false;
+            }
         }
 
         private static bool OnToggle(UnityModManager.ModEntry modEntry, bool enabled)
@@ -37,7 +69,12 @@ namespace ADOFAILoom
 
                 server = McpServerFactory.Create(
                     Dispatcher,
-                    message => modEntry.Logger.Log(message));
+                    toolAvailability
+                        ?? throw new InvalidOperationException(
+                            "The MCP tool availability service is not initialized."
+                        ),
+                    message => modEntry.Logger.Log(message)
+                );
                 server.Start();
                 modEntry.Logger.Log("MCP server listening at http://127.0.0.1:39473/mcp");
                 return true;
@@ -55,10 +92,53 @@ namespace ADOFAILoom
             Dispatcher.ProcessPending();
         }
 
+        private static void OnGUI(UnityModManager.ModEntry modEntry)
+        {
+            ToolSettingsPanel panel =
+                toolSettingsPanel
+                ?? throw new InvalidOperationException(
+                    "The ADOFAILoom settings panel is not initialized."
+                );
+            panel.Draw();
+        }
+
+        private static void OnSaveGUI(UnityModManager.ModEntry modEntry)
+        {
+            SaveSettings(modEntry);
+        }
+
         private static bool OnUnload(UnityModManager.ModEntry modEntry)
         {
-            StopServer();
-            return true;
+            try
+            {
+                SaveSettings(modEntry);
+                return true;
+            }
+            catch (Exception exception)
+            {
+                modEntry.Logger.Error($"Unable to save ADOFAILoom settings: {exception}");
+                return false;
+            }
+            finally
+            {
+                StopServer();
+            }
+        }
+
+        private static void SaveSettings(UnityModManager.ModEntry modEntry)
+        {
+            ToolSettings currentSettings =
+                settings
+                ?? throw new InvalidOperationException(
+                    "The ADOFAILoom settings instance is not initialized."
+                );
+            McpToolAvailability availability =
+                toolAvailability
+                ?? throw new InvalidOperationException(
+                    "The MCP tool availability service is not initialized."
+                );
+            currentSettings.DisabledTools = new List<string>(availability.GetDisabledToolNames());
+            currentSettings.Save(modEntry);
         }
 
         private static void StopServer()

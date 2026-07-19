@@ -13,7 +13,8 @@ namespace ADOFAILoom.Threading
         public async Task<T> InvokeAsync<T>(
             Func<T> action,
             TimeSpan timeout,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken
+        )
         {
             if (timeout <= TimeSpan.Zero)
             {
@@ -21,9 +22,12 @@ namespace ADOFAILoom.Threading
             }
 
             using (var timeoutSource = new CancellationTokenSource(timeout))
-            using (var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(
-                       cancellationToken,
-                       timeoutSource.Token))
+            using (
+                var linkedSource = CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellationToken,
+                    timeoutSource.Token
+                )
+            )
             {
                 var request = new MainThreadRequest<T>(action, linkedSource.Token);
                 requests.Enqueue(request);
@@ -32,11 +36,14 @@ namespace ADOFAILoom.Threading
                 {
                     return await request.Task.ConfigureAwait(false);
                 }
-                catch (OperationCanceledException) when (
-                    timeoutSource.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+                catch (OperationCanceledException)
+                    when (timeoutSource.IsCancellationRequested
+                        && !cancellationToken.IsCancellationRequested
+                    )
                 {
                     throw new TimeoutException(
-                        $"The Unity main-thread operation exceeded {timeout.TotalSeconds:0.###} seconds.");
+                        $"The Unity main-thread operation exceeded {timeout.TotalSeconds:0.###} seconds."
+                    );
                 }
             }
         }
@@ -68,8 +75,9 @@ namespace ADOFAILoom.Threading
         private sealed class MainThreadRequest<T> : IMainThreadRequest
         {
             private readonly Func<T> action;
-            private readonly TaskCompletionSource<T> completion =
-                new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+            private readonly TaskCompletionSource<T> completion = new TaskCompletionSource<T>(
+                TaskCreationOptions.RunContinuationsAsynchronously
+            );
             private readonly CancellationTokenRegistration cancellationRegistration;
 
             public MainThreadRequest(Func<T> action, CancellationToken cancellationToken)

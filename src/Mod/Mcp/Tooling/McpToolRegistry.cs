@@ -10,19 +10,38 @@ namespace ADOFAILoom.Mcp.Tooling
     internal sealed class McpToolRegistry
     {
         private readonly SortedDictionary<string, RegisteredTool> tools;
+        private readonly McpToolAvailability availability;
 
-        private McpToolRegistry(SortedDictionary<string, RegisteredTool> tools)
+        private McpToolRegistry(
+            SortedDictionary<string, RegisteredTool> tools,
+            McpToolAvailability availability
+        )
         {
             this.tools = tools;
+            this.availability = availability;
         }
 
-        public IReadOnlyList<McpToolDefinition> Definitions =>
-            tools.Values.Select(tool => tool.Definition).ToArray();
+        public IReadOnlyList<McpToolDefinition> Definitions
+        {
+            get
+            {
+                var enabledTools = new HashSet<string>(
+                    availability.GetEnabledToolNames(),
+                    StringComparer.Ordinal
+                );
+                return tools
+                    .Where(entry => enabledTools.Contains(entry.Key))
+                    .Select(entry => entry.Value.Definition)
+                    .ToArray();
+            }
+        }
 
         public static McpToolRegistry Discover(
             Assembly assembly,
             IReadOnlyDictionary<Type, object> services,
-            JsonSerializerOptions jsonOptions)
+            McpToolAvailability availability,
+            JsonSerializerOptions jsonOptions
+        )
         {
             var discovered = new SortedDictionary<string, RegisteredTool>(StringComparer.Ordinal);
             var instances = new Dictionary<Type, object>();
@@ -30,12 +49,15 @@ namespace ADOFAILoom.Mcp.Tooling
             IEnumerable<MethodInfo> methods = assembly
                 .GetTypes()
                 .Where(type => !type.IsGenericTypeDefinition)
-                .SelectMany(type => type.GetMethods(
-                    BindingFlags.Public |
-                    BindingFlags.NonPublic |
-                    BindingFlags.Instance |
-                    BindingFlags.Static |
-                    BindingFlags.DeclaredOnly))
+                .SelectMany(type =>
+                    type.GetMethods(
+                        BindingFlags.Public
+                            | BindingFlags.NonPublic
+                            | BindingFlags.Instance
+                            | BindingFlags.Static
+                            | BindingFlags.DeclaredOnly
+                    )
+                )
                 .Where(method => method.GetCustomAttribute<McpToolAttribute>() != null)
                 .OrderBy(method => method.DeclaringType?.FullName, StringComparer.Ordinal)
                 .ThenBy(method => method.Name, StringComparer.Ordinal);
@@ -47,25 +69,30 @@ namespace ADOFAILoom.Mcp.Tooling
                 if (string.IsNullOrWhiteSpace(attribute.Description))
                 {
                     throw new InvalidOperationException(
-                        $"MCP tool '{attribute.Name}' must declare a description.");
+                        $"MCP tool '{attribute.Name}' must declare a description."
+                    );
                 }
 
                 if (discovered.ContainsKey(attribute.Name))
                 {
                     throw new InvalidOperationException(
-                        $"Duplicate MCP tool name '{attribute.Name}'.");
+                        $"Duplicate MCP tool name '{attribute.Name}'."
+                    );
                 }
 
                 object? target = null;
                 if (!method.IsStatic)
                 {
-                    Type declaringType = method.DeclaringType ??
-                        throw new InvalidOperationException(
-                            $"MCP tool method '{method.Name}' has no declaring type.");
+                    Type declaringType =
+                        method.DeclaringType
+                        ?? throw new InvalidOperationException(
+                            $"MCP tool method '{method.Name}' has no declaring type."
+                        );
                     if (declaringType.IsAbstract)
                     {
                         throw new InvalidOperationException(
-                            $"MCP tool container '{declaringType.FullName}' cannot be abstract.");
+                            $"MCP tool container '{declaringType.FullName}' cannot be abstract."
+                        );
                     }
 
                     if (!instances.TryGetValue(declaringType, out target))
@@ -75,7 +102,10 @@ namespace ADOFAILoom.Mcp.Tooling
                     }
                 }
 
-                JsonElement inputSchema = JsonSchemaGenerator.CreateInputSchema(method, jsonOptions);
+                JsonElement inputSchema = JsonSchemaGenerator.CreateInputSchema(
+                    method,
+                    jsonOptions
+                );
                 var definition = new McpToolDefinition(
                     attribute.Name,
                     attribute.Description,
@@ -84,7 +114,9 @@ namespace ADOFAILoom.Mcp.Tooling
                         attribute.ReadOnly,
                         attribute.Destructive,
                         attribute.Idempotent,
-                        attribute.OpenWorld));
+                        attribute.OpenWorld
+                    )
+                );
                 var invoker = new McpToolInvoker(target, method, jsonOptions);
                 discovered.Add(attribute.Name, new RegisteredTool(definition, invoker));
             }
@@ -94,12 +126,13 @@ namespace ADOFAILoom.Mcp.Tooling
                 throw new InvalidOperationException("No MCP tools were discovered.");
             }
 
-            return new McpToolRegistry(discovered);
+            availability.ValidateRegisteredTools(discovered.Keys);
+            return new McpToolRegistry(discovered, availability);
         }
 
         public bool TryGet(string name, out McpToolInvoker? invoker)
         {
-            if (tools.TryGetValue(name, out RegisteredTool? tool))
+            if (tools.TryGetValue(name, out RegisteredTool? tool) && availability.IsEnabled(name))
             {
                 invoker = tool.Invoker;
                 return true;
@@ -109,16 +142,16 @@ namespace ADOFAILoom.Mcp.Tooling
             return false;
         }
 
-        private static object CreateInstance(
-            Type type,
-            IReadOnlyDictionary<Type, object> services)
+        private static object CreateInstance(Type type, IReadOnlyDictionary<Type, object> services)
         {
             ConstructorInfo[] constructors = type.GetConstructors(
-                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic
+            );
             if (constructors.Length != 1)
             {
                 throw new InvalidOperationException(
-                    $"MCP tool container '{type.FullName}' must declare exactly one constructor.");
+                    $"MCP tool container '{type.FullName}' must declare exactly one constructor."
+                );
             }
 
             ParameterInfo[] parameters = constructors[0].GetParameters();
@@ -129,8 +162,9 @@ namespace ADOFAILoom.Mcp.Tooling
                 if (!services.TryGetValue(serviceType, out object? service))
                 {
                     throw new InvalidOperationException(
-                        $"MCP tool container '{type.FullName}' requires unregistered service " +
-                        $"'{serviceType.FullName}'.");
+                        $"MCP tool container '{type.FullName}' requires unregistered service "
+                            + $"'{serviceType.FullName}'."
+                    );
                 }
 
                 arguments[index] = service;
@@ -144,7 +178,8 @@ namespace ADOFAILoom.Mcp.Tooling
             {
                 throw new InvalidOperationException(
                     $"MCP tool container '{type.FullName}' could not be created.",
-                    exception.InnerException);
+                    exception.InnerException
+                );
             }
         }
 
@@ -153,19 +188,24 @@ namespace ADOFAILoom.Mcp.Tooling
             if (name.Length == 0 || name.Length > 128)
             {
                 throw new InvalidOperationException(
-                    "MCP tool names must contain between 1 and 128 characters.");
+                    "MCP tool names must contain between 1 and 128 characters."
+                );
             }
 
             foreach (char character in name)
             {
-                bool valid = character >= 'a' && character <= 'z' ||
-                             character >= 'A' && character <= 'Z' ||
-                             character >= '0' && character <= '9' ||
-                             character == '_' || character == '-' || character == '.';
+                bool valid =
+                    character >= 'a' && character <= 'z'
+                    || character >= 'A' && character <= 'Z'
+                    || character >= '0' && character <= '9'
+                    || character == '_'
+                    || character == '-'
+                    || character == '.';
                 if (!valid)
                 {
                     throw new InvalidOperationException(
-                        $"MCP tool name '{name}' contains invalid character '{character}'.");
+                        $"MCP tool name '{name}' contains invalid character '{character}'."
+                    );
                 }
             }
         }

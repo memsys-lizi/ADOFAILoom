@@ -26,8 +26,21 @@ namespace ADOFAILoom.Mcp.Tooling
     [AttributeUsage(
         AttributeTargets.Parameter | AttributeTargets.Property,
         AllowMultiple = false,
-        Inherited = false)]
-    internal sealed class McpOptionalAttribute : Attribute
+        Inherited = false
+    )]
+    internal sealed class McpOptionalAttribute : Attribute { }
+
+    [AttributeUsage(AttributeTargets.Method, AllowMultiple = false, Inherited = false)]
+    internal sealed class McpImageContentAttribute : Attribute
     {
+        public McpImageContentAttribute(string dataProperty, string mimeType)
+        {
+            DataProperty = dataProperty ?? throw new ArgumentNullException(nameof(dataProperty));
+            MimeType = mimeType ?? throw new ArgumentNullException(nameof(mimeType));
+        }
+
+        public string DataProperty { get; }
+
+        public string MimeType { get; }
     }
 }

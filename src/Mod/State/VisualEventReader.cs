@@ -26,57 +26,84 @@ namespace ADOFAILoom.State
             string[]? eventTypes,
             int offset,
             int limit,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken
+        )
         {
             return dispatcher.InvokeAsync(
                 () => ListOnMainThread(floorStart, floorEnd, eventTypes, offset, limit),
                 McpProtocol.MainThreadTimeout,
-                cancellationToken);
+                cancellationToken
+            );
         }
 
         public static VisualEventReference CreateReference(
             VisualEventCollection collection,
             int index,
-            LevelEvent levelEvent)
+            LevelEvent levelEvent
+        )
         {
             return new VisualEventReference
             {
                 Collection = collection,
                 Index = index,
                 EventType = levelEvent.eventType.ToString(),
-                Fingerprint = CanonicalJsonHash.ComputeEventFingerprint(levelEvent)
+                Fingerprint = CanonicalJsonHash.ComputeEventFingerprint(levelEvent),
             };
         }
 
         public static LevelEvent ResolveReference(
             scnEditor editor,
             VisualEventReference reference,
-            LevelEventType requiredType)
+            LevelEventType requiredType
+        )
+        {
+            return ResolveReference(
+                editor,
+                reference,
+                requiredType,
+                VisualEventCollection.LevelEvents
+            );
+        }
+
+        public static LevelEvent ResolveReference(
+            scnEditor editor,
+            VisualEventReference reference,
+            LevelEventType requiredType,
+            VisualEventCollection requiredCollection
+        )
         {
             if (reference == null)
             {
                 throw new ArgumentException("Event reference cannot be null.", nameof(reference));
             }
 
-            if (reference.Collection != VisualEventCollection.LevelEvents)
+            if (reference.Collection != requiredCollection)
             {
                 throw new InvalidOperationException(
-                    $"{requiredType} events must reference the LevelEvents collection.");
+                    $"{requiredType} events must reference the {requiredCollection} collection."
+                );
             }
 
-            if (reference.Index < 0 || reference.Index >= editor.events.Count)
+            IList<LevelEvent> source =
+                requiredCollection == VisualEventCollection.LevelEvents
+                    ? editor.events
+                    : editor.decorations;
+            if (reference.Index < 0 || reference.Index >= source.Count)
             {
                 throw StaleReference(reference);
             }
 
-            LevelEvent levelEvent = editor.events[reference.Index];
+            LevelEvent levelEvent = source[reference.Index];
             string requiredTypeName = requiredType.ToString();
-            if (levelEvent.eventType != requiredType ||
-                !string.Equals(reference.EventType, requiredTypeName, StringComparison.Ordinal) ||
-                !string.Equals(
+            if (
+                levelEvent.eventType != requiredType
+                || !string.Equals(reference.EventType, requiredTypeName, StringComparison.Ordinal)
+                || !string.Equals(
                     reference.Fingerprint,
                     CanonicalJsonHash.ComputeEventFingerprint(levelEvent),
-                    StringComparison.Ordinal))
+                    StringComparison.Ordinal
+                )
+            )
             {
                 throw StaleReference(reference);
             }
@@ -84,7 +111,8 @@ namespace ADOFAILoom.State
             if (levelEvent.locked)
             {
                 throw new InvalidOperationException(
-                    $"The referenced {requiredTypeName} event is locked in the editor.");
+                    $"The referenced {requiredTypeName} event is locked in the editor."
+                );
             }
 
             return levelEvent;
@@ -95,14 +123,15 @@ namespace ADOFAILoom.State
             int? floorEnd,
             string[]? eventTypes,
             int offset,
-            int limit)
+            int limit
+        )
         {
             scnEditor editor = EditorSession.RequireReadable();
             ValidatePage(offset, limit);
             ValidateFloorRange(editor, floorStart, floorEnd);
 
-            HashSet<string> availableTypes = GCS.levelEventsInfo.Values
-                .Where(IsVisual)
+            HashSet<string> availableTypes = GCS
+                .levelEventsInfo.Values.Where(IsVisual)
                 .Select(info => info.type.ToString())
                 .ToHashSet(StringComparer.Ordinal);
             HashSet<string>? requestedTypes = ValidateEventTypes(eventTypes, availableTypes);
@@ -114,25 +143,25 @@ namespace ADOFAILoom.State
                 VisualEventCollection.LevelEvents,
                 floorStart,
                 floorEnd,
-                requestedTypes);
+                requestedTypes
+            );
             AddMatches(
                 matches,
                 editor.decorations,
                 VisualEventCollection.Decorations,
                 floorStart,
                 floorEnd,
-                requestedTypes);
+                requestedTypes
+            );
 
-            VisualEventSnapshot[] page = matches
-                .Skip(offset)
-                .Take(limit)
-                .ToArray();
+            VisualEventSnapshot[] page = matches.Skip(offset).Take(limit).ToArray();
             return new VisualEventPage(
                 CanonicalJsonHash.ComputeLevelRevision(editor.levelData),
                 matches.Count,
                 offset,
                 limit,
-                page);
+                page
+            );
         }
 
         private static void AddMatches(
@@ -141,14 +170,17 @@ namespace ADOFAILoom.State
             VisualEventCollection collection,
             int? floorStart,
             int? floorEnd,
-            ISet<string>? requestedTypes)
+            ISet<string>? requestedTypes
+        )
         {
             for (int index = 0; index < source.Count; index++)
             {
                 LevelEvent levelEvent = source[index];
-                if (!IsVisual(levelEvent.info) ||
-                    floorStart.HasValue && levelEvent.floor < floorStart.Value ||
-                    floorEnd.HasValue && levelEvent.floor > floorEnd.Value)
+                if (
+                    !IsVisual(levelEvent.info)
+                    || floorStart.HasValue && levelEvent.floor < floorStart.Value
+                    || floorEnd.HasValue && levelEvent.floor > floorEnd.Value
+                )
                 {
                     continue;
                 }
@@ -159,35 +191,41 @@ namespace ADOFAILoom.State
                     continue;
                 }
 
-                string[] disabledProperties = levelEvent.disabled
-                    .Where(item => item.Value)
+                string[] disabledProperties = levelEvent
+                    .disabled.Where(item => item.Value)
                     .Select(item => item.Key)
                     .OrderBy(name => name, StringComparer.Ordinal)
                     .ToArray();
-                target.Add(new VisualEventSnapshot(
-                    CreateReference(collection, index, levelEvent),
-                    levelEvent.floor,
-                    eventType,
-                    levelEvent.active,
-                    levelEvent.visible,
-                    levelEvent.locked,
-                    CanonicalJsonHash.GetEventProperties(levelEvent),
-                    disabledProperties));
+                target.Add(
+                    new VisualEventSnapshot(
+                        CreateReference(collection, index, levelEvent),
+                        levelEvent.floor,
+                        eventType,
+                        levelEvent.active,
+                        levelEvent.visible,
+                        levelEvent.locked,
+                        CanonicalJsonHash.GetEventProperties(levelEvent),
+                        disabledProperties
+                    )
+                );
             }
         }
 
         private static bool IsVisual(LevelEventInfo info)
         {
-            return info != null &&
-                   (info.isDecoration ||
-                    info.categories.Contains(LevelEventCategory.TrackFx) ||
-                    info.categories.Contains(LevelEventCategory.DecorationFx) ||
-                    info.categories.Contains(LevelEventCategory.VisualFx));
+            return info != null
+                && (
+                    info.isDecoration
+                    || info.categories.Contains(LevelEventCategory.TrackFx)
+                    || info.categories.Contains(LevelEventCategory.DecorationFx)
+                    || info.categories.Contains(LevelEventCategory.VisualFx)
+                );
         }
 
         private static HashSet<string>? ValidateEventTypes(
             IEnumerable<string>? eventTypes,
-            ISet<string> availableTypes)
+            ISet<string> availableTypes
+        )
         {
             if (eventTypes == null)
             {
@@ -201,14 +239,16 @@ namespace ADOFAILoom.State
                 {
                     throw new ArgumentException(
                         $"'{eventType}' is not an exact visual LevelEventType name.",
-                        nameof(eventTypes));
+                        nameof(eventTypes)
+                    );
                 }
 
                 if (!result.Add(eventType))
                 {
                     throw new ArgumentException(
                         $"Visual event type '{eventType}' was specified more than once.",
-                        nameof(eventTypes));
+                        nameof(eventTypes)
+                    );
                 }
             }
 
@@ -216,32 +256,36 @@ namespace ADOFAILoom.State
             {
                 throw new ArgumentException(
                     "Event type filter cannot be an empty array.",
-                    nameof(eventTypes));
+                    nameof(eventTypes)
+                );
             }
 
             return result;
         }
 
-        private static void ValidateFloorRange(
-            scnEditor editor,
-            int? floorStart,
-            int? floorEnd)
+        private static void ValidateFloorRange(scnEditor editor, int? floorStart, int? floorEnd)
         {
             int lastFloor = editor.floors.Count - 1;
-            if (floorStart.HasValue &&
-                (floorStart.Value < LevelEvent.NoFloor || floorStart.Value > lastFloor))
+            if (
+                floorStart.HasValue
+                && (floorStart.Value < LevelEvent.NoFloor || floorStart.Value > lastFloor)
+            )
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(floorStart),
-                    $"Floor start must be between {LevelEvent.NoFloor} and {lastFloor}.");
+                    $"Floor start must be between {LevelEvent.NoFloor} and {lastFloor}."
+                );
             }
 
-            if (floorEnd.HasValue &&
-                (floorEnd.Value < LevelEvent.NoFloor || floorEnd.Value > lastFloor))
+            if (
+                floorEnd.HasValue
+                && (floorEnd.Value < LevelEvent.NoFloor || floorEnd.Value > lastFloor)
+            )
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(floorEnd),
-                    $"Floor end must be between {LevelEvent.NoFloor} and {lastFloor}.");
+                    $"Floor end must be between {LevelEvent.NoFloor} and {lastFloor}."
+                );
             }
 
             if (floorStart.HasValue && floorEnd.HasValue && floorStart.Value > floorEnd.Value)
@@ -261,15 +305,17 @@ namespace ADOFAILoom.State
             {
                 throw new ArgumentOutOfRangeException(
                     nameof(limit),
-                    $"Limit must be between 1 and {MaximumPageSize}.");
+                    $"Limit must be between 1 and {MaximumPageSize}."
+                );
             }
         }
 
         private static InvalidOperationException StaleReference(VisualEventReference reference)
         {
             return new InvalidOperationException(
-                $"The event reference at {reference.Collection}[{reference.Index}] is stale. " +
-                "Read visual events again before modifying the level.");
+                $"The event reference at {reference.Collection}[{reference.Index}] is stale. "
+                    + "Read visual events again before modifying the level."
+            );
         }
     }
 }

@@ -35,8 +35,14 @@
           Condition="'$(DeployMod)' == 'true'">
     <PropertyGroup>
       <ModsDir>$(GameDir)$(PathSeparator)Mods$(PathSeparator)$(AssemblyName)$(PathSeparator)</ModsDir>
+      <ModSettingsPath>$(ModsDir)Settings.xml</ModSettingsPath>
+      <PreservedModSettingsPath>$(IntermediateOutputPath)ADOFAILoom.Settings.xml</PreservedModSettingsPath>
     </PropertyGroup>
 
+    <Delete Files="$(PreservedModSettingsPath)" />
+    <Copy SourceFiles="$(ModSettingsPath)"
+          DestinationFiles="$(PreservedModSettingsPath)"
+          Condition="Exists('$(ModSettingsPath)')" />
     <RemoveDir Directories="$(ModsDir)" />
     <MakeDir Directories="$(ModsDir)" />
     <ItemGroup>
@@ -44,6 +50,10 @@
     </ItemGroup>
     <Copy SourceFiles="@(ModPackageFiles)"
           DestinationFiles="@(ModPackageFiles->'$(ModsDir)%(RecursiveDir)%(Filename)%(Extension)')" />
+    <Copy SourceFiles="$(PreservedModSettingsPath)"
+          DestinationFiles="$(ModSettingsPath)"
+          Condition="Exists('$(PreservedModSettingsPath)')" />
+    <Delete Files="$(PreservedModSettingsPath)" />
     <Message Text="Mod deployed to game directory: $(ModsDir)" Importance="high" />
 
     <Exec Command="start &quot;&quot; &quot;$(GameExePath)&quot;"

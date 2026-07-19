@@ -21,13 +21,15 @@ namespace ADOFAILoom.Actions
 
         public Task<LevelOpenResult> OpenAsync(
             string levelPath,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken
+        )
         {
             string fullPath = ValidateLevelPath(levelPath);
             return dispatcher.InvokeAsync(
                 () => OpenOnMainThread(fullPath),
                 McpProtocol.MainThreadTimeout,
-                cancellationToken);
+                cancellationToken
+            );
         }
 
         private static LevelOpenResult OpenOnMainThread(string levelPath)
@@ -41,7 +43,8 @@ namespace ADOFAILoom.Actions
             if (editor == null)
             {
                 throw new InvalidOperationException(
-                    "open_level requires the scnEditor scene. Call switch_scene first.");
+                    "open_level requires the scnEditor scene. Call switch_scene first."
+                );
             }
 
             bool started = false;
@@ -52,9 +55,7 @@ namespace ADOFAILoom.Actions
             }
 
             editor.CheckUnsavedChanges(StartOpen);
-            return new LevelOpenResult(
-                levelPath,
-                started ? Started : AwaitingConfirmation);
+            return new LevelOpenResult(levelPath, started ? Started : AwaitingConfirmation);
         }
 
         private static string ValidateLevelPath(string levelPath)
@@ -68,18 +69,23 @@ namespace ADOFAILoom.Actions
             {
                 throw new ArgumentException(
                     "Level path must be an absolute file path.",
-                    nameof(levelPath));
+                    nameof(levelPath)
+                );
             }
 
             string fullPath = Path.GetFullPath(levelPath);
-            if (!string.Equals(
+            if (
+                !string.Equals(
                     Path.GetExtension(fullPath),
                     ".adofai",
-                    StringComparison.OrdinalIgnoreCase))
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
             {
                 throw new ArgumentException(
                     "Level path must reference an .adofai file.",
-                    nameof(levelPath));
+                    nameof(levelPath)
+                );
             }
 
             if (!File.Exists(fullPath))

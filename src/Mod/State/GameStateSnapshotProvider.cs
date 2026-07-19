@@ -16,12 +16,10 @@ namespace ADOFAILoom.State
                 isEditor,
                 isGameplay,
                 isLevelSelect,
-                isCustomLevelSelect);
+                isCustomLevelSelect
+            );
 
-            return new GameState(
-                scene,
-                mode,
-                controller == null ? (bool?)null : controller.paused);
+            return new GameState(scene, mode, controller == null ? (bool?)null : controller.paused);
         }
     }
 }

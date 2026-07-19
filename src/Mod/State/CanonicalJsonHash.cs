@@ -30,7 +30,8 @@ namespace ADOFAILoom.State
 
             JsonElement encoded = JsonSerializer.SerializeToElement(
                 levelEvent.Encode(),
-                McpProtocol.JsonOptions);
+                McpProtocol.JsonOptions
+            );
             return ComputeElementHash(encoded);
         }
 
@@ -88,9 +89,11 @@ namespace ADOFAILoom.State
                 case JsonValueKind.Object:
                     writer.Append('{');
                     bool firstProperty = true;
-                    foreach (JsonProperty property in element
-                                 .EnumerateObject()
-                                 .OrderBy(item => item.Name, StringComparer.Ordinal))
+                    foreach (
+                        JsonProperty property in element
+                            .EnumerateObject()
+                            .OrderBy(item => item.Name, StringComparer.Ordinal)
+                    )
                     {
                         if (!firstProperty)
                         {
@@ -145,7 +148,8 @@ namespace ADOFAILoom.State
 
                 default:
                     throw new InvalidOperationException(
-                        $"Unsupported JSON value kind '{element.ValueKind}'.");
+                        $"Unsupported JSON value kind '{element.ValueKind}'."
+                    );
             }
         }
     }

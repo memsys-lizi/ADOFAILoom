@@ -11,7 +11,8 @@ namespace ADOFAILoom.Mcp.Protocol
         public static bool TryValidate(
             JsonElement parameters,
             out string? error,
-            params string[] applicationParameterNames)
+            params string[] applicationParameterNames
+        )
         {
             foreach (JsonProperty property in parameters.EnumerateObject())
             {
@@ -44,9 +45,11 @@ namespace ADOFAILoom.Mcp.Protocol
                 return false;
             }
 
-            if (metadata.TryGetProperty(ProgressTokenName, out JsonElement progressToken) &&
-                progressToken.ValueKind != JsonValueKind.String &&
-                progressToken.ValueKind != JsonValueKind.Number)
+            if (
+                metadata.TryGetProperty(ProgressTokenName, out JsonElement progressToken)
+                && progressToken.ValueKind != JsonValueKind.String
+                && progressToken.ValueKind != JsonValueKind.Number
+            )
             {
                 error = "_meta.progressToken must be a string or number.";
                 return false;

@@ -12,12 +12,13 @@ namespace ADOFAILoom.State
         public const string Unknown = "unknown";
 
         private static readonly HashSet<string> MenuScenes = new HashSet<string>(
-            StringComparer.Ordinal)
+            StringComparer.Ordinal
+        )
         {
             "scnSplash",
             "scnIntro",
             "scnLoading",
-            "scnCalibration"
+            "scnCalibration",
         };
 
         public static string Resolve(
@@ -25,7 +26,8 @@ namespace ADOFAILoom.State
             bool isEditor,
             bool isGameplay,
             bool isLevelSelect,
-            bool isCustomLevelSelect)
+            bool isCustomLevelSelect
+        )
         {
             if (isEditor)
             {

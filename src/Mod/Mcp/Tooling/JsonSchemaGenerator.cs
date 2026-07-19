@@ -10,7 +10,10 @@ namespace ADOFAILoom.Mcp.Tooling
 {
     internal static class JsonSchemaGenerator
     {
-        public static JsonElement CreateInputSchema(MethodInfo method, JsonSerializerOptions options)
+        public static JsonElement CreateInputSchema(
+            MethodInfo method,
+            JsonSerializerOptions options
+        )
         {
             var properties = new SortedDictionary<string, object?>(StringComparer.Ordinal);
             var required = new List<string>();
@@ -24,7 +27,9 @@ namespace ADOFAILoom.Mcp.Tooling
 
                 string name = GetJsonName(parameter.Name);
                 object schema = CreateTypeSchema(parameter.ParameterType, new HashSet<Type>());
-                string? description = parameter.GetCustomAttribute<DescriptionAttribute>()?.Description;
+                string? description = parameter
+                    .GetCustomAttribute<DescriptionAttribute>()
+                    ?.Description;
                 if (!string.IsNullOrWhiteSpace(description))
                 {
                     ((IDictionary<string, object?>)schema)["description"] = description;
@@ -32,8 +37,9 @@ namespace ADOFAILoom.Mcp.Tooling
 
                 properties.Add(name, schema);
 
-                bool optional = parameter.HasDefaultValue ||
-                                parameter.GetCustomAttribute<McpOptionalAttribute>() != null;
+                bool optional =
+                    parameter.HasDefaultValue
+                    || parameter.GetCustomAttribute<McpOptionalAttribute>() != null;
                 if (!optional)
                 {
                     required.Add(name);
@@ -44,7 +50,7 @@ namespace ADOFAILoom.Mcp.Tooling
             {
                 ["type"] = "object",
                 ["properties"] = properties,
-                ["additionalProperties"] = false
+                ["additionalProperties"] = false,
             };
             if (required.Count > 0)
             {
@@ -54,9 +60,7 @@ namespace ADOFAILoom.Mcp.Tooling
             return JsonSerializer.SerializeToElement(root, options);
         }
 
-        private static IDictionary<string, object?> CreateTypeSchema(
-            Type type,
-            ISet<Type> visiting)
+        private static IDictionary<string, object?> CreateTypeSchema(Type type, ISet<Type> visiting)
         {
             Type? nullableType = Nullable.GetUnderlyingType(type);
             if (nullableType != null)
@@ -91,7 +95,7 @@ namespace ADOFAILoom.Mcp.Tooling
                 return new Dictionary<string, object?>
                 {
                     ["type"] = "string",
-                    ["enum"] = Enum.GetNames(type)
+                    ["enum"] = Enum.GetNames(type),
                 };
             }
 
@@ -101,28 +105,31 @@ namespace ADOFAILoom.Mcp.Tooling
                 return new Dictionary<string, object?>
                 {
                     ["type"] = "array",
-                    ["items"] = CreateTypeSchema(elementType, visiting)
+                    ["items"] = CreateTypeSchema(elementType, visiting),
                 };
             }
 
             if (type == typeof(object) || type == typeof(JsonElement) || type.Namespace == "System")
             {
                 throw new InvalidOperationException(
-                    $"MCP input type '{type.FullName}' does not have a strict JSON schema mapping.");
+                    $"MCP input type '{type.FullName}' does not have a strict JSON schema mapping."
+                );
             }
 
             if (!visiting.Add(type))
             {
                 throw new InvalidOperationException(
-                    $"Recursive MCP input type '{type.FullName}' is not supported.");
+                    $"Recursive MCP input type '{type.FullName}' is not supported."
+                );
             }
 
             try
             {
                 var properties = new SortedDictionary<string, object?>(StringComparer.Ordinal);
                 var required = new List<string>();
-                PropertyInfo[] serializableProperties = type
-                    .GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                PropertyInfo[] serializableProperties = type.GetProperties(
+                        BindingFlags.Instance | BindingFlags.Public
+                    )
                     .Where(property => property.GetMethod != null && property.SetMethod != null)
                     .Where(property => property.GetIndexParameters().Length == 0)
                     .Where(property => property.GetCustomAttribute<JsonIgnoreAttribute>() == null)
@@ -131,24 +138,29 @@ namespace ADOFAILoom.Mcp.Tooling
                 if (serializableProperties.Length == 0)
                 {
                     throw new InvalidOperationException(
-                        $"MCP input DTO '{type.FullName}' has no public readable and writable properties.");
+                        $"MCP input DTO '{type.FullName}' has no public readable and writable properties."
+                    );
                 }
 
                 foreach (PropertyInfo property in serializableProperties)
                 {
-                    string name = property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name ??
-                                  JsonNamingPolicy.CamelCase.ConvertName(property.Name);
-                    IDictionary<string, object?> schema =
-                        CreateTypeSchema(property.PropertyType, visiting);
-                    string? description = property.GetCustomAttribute<DescriptionAttribute>()?.Description;
+                    string name =
+                        property.GetCustomAttribute<JsonPropertyNameAttribute>()?.Name
+                        ?? JsonNamingPolicy.CamelCase.ConvertName(property.Name);
+                    IDictionary<string, object?> schema = CreateTypeSchema(
+                        property.PropertyType,
+                        visiting
+                    );
+                    string? description = property
+                        .GetCustomAttribute<DescriptionAttribute>()
+                        ?.Description;
                     if (!string.IsNullOrWhiteSpace(description))
                     {
                         schema["description"] = description;
                     }
 
                     properties.Add(name, schema);
-                    bool optional =
-                        property.GetCustomAttribute<McpOptionalAttribute>() != null;
+                    bool optional = property.GetCustomAttribute<McpOptionalAttribute>() != null;
                     if (!optional)
                     {
                         required.Add(name);
@@ -159,7 +171,7 @@ namespace ADOFAILoom.Mcp.Tooling
                 {
                     ["type"] = "object",
                     ["properties"] = properties,
-                    ["additionalProperties"] = false
+                    ["additionalProperties"] = false,
                 };
                 if (required.Count > 0)
                 {
@@ -191,10 +203,14 @@ namespace ADOFAILoom.Mcp.Tooling
 
         private static bool IsInteger(Type type)
         {
-            return type == typeof(byte) || type == typeof(sbyte) ||
-                   type == typeof(short) || type == typeof(ushort) ||
-                   type == typeof(int) || type == typeof(uint) ||
-                   type == typeof(long) || type == typeof(ulong);
+            return type == typeof(byte)
+                || type == typeof(sbyte)
+                || type == typeof(short)
+                || type == typeof(ushort)
+                || type == typeof(int)
+                || type == typeof(uint)
+                || type == typeof(long)
+                || type == typeof(ulong);
         }
 
         private static bool IsNumber(Type type)
@@ -215,10 +231,12 @@ namespace ADOFAILoom.Mcp.Tooling
             }
 
             Type genericDefinition = type.GetGenericTypeDefinition();
-            if (genericDefinition == typeof(List<>) ||
-                genericDefinition == typeof(IReadOnlyList<>) ||
-                genericDefinition == typeof(ICollection<>) ||
-                genericDefinition == typeof(IEnumerable<>))
+            if (
+                genericDefinition == typeof(List<>)
+                || genericDefinition == typeof(IReadOnlyList<>)
+                || genericDefinition == typeof(ICollection<>)
+                || genericDefinition == typeof(IEnumerable<>)
+            )
             {
                 return type.GetGenericArguments()[0];
             }

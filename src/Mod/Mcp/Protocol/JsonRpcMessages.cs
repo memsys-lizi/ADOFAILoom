@@ -82,6 +82,9 @@ namespace ADOFAILoom.Mcp.Protocol
     {
         [JsonPropertyName("tools")]
         public McpToolsCapability Tools { get; } = new McpToolsCapability();
+
+        [JsonPropertyName("resources")]
+        public McpResourcesCapability Resources { get; } = new McpResourcesCapability();
     }
 
     internal sealed class McpToolsCapability
@@ -90,13 +93,15 @@ namespace ADOFAILoom.Mcp.Protocol
         public bool ListChanged => false;
     }
 
+    internal sealed class McpResourcesCapability { }
+
     internal sealed class McpServerInfo
     {
         [JsonPropertyName("name")]
         public string Name => "ADOFAILoom";
 
         [JsonPropertyName("version")]
-        public string Version => "1.1.0";
+        public string Version => "2.1.0";
     }
 
     internal sealed class McpToolsListResult
@@ -110,13 +115,113 @@ namespace ADOFAILoom.Mcp.Protocol
         public IReadOnlyList<McpToolDefinition> Tools { get; }
     }
 
+    internal sealed class McpResourcesListResult
+    {
+        public McpResourcesListResult(IReadOnlyList<McpResourceDefinition> resources)
+        {
+            Resources = resources;
+        }
+
+        [JsonPropertyName("resources")]
+        public IReadOnlyList<McpResourceDefinition> Resources { get; }
+    }
+
+    internal sealed class McpResourceDefinition
+    {
+        public McpResourceDefinition(
+            string uri,
+            string name,
+            string title,
+            string description,
+            string mimeType,
+            int size,
+            McpResourceAnnotations annotations
+        )
+        {
+            Uri = uri;
+            Name = name;
+            Title = title;
+            Description = description;
+            MimeType = mimeType;
+            Size = size;
+            Annotations = annotations;
+        }
+
+        [JsonPropertyName("uri")]
+        public string Uri { get; }
+
+        [JsonPropertyName("name")]
+        public string Name { get; }
+
+        [JsonPropertyName("title")]
+        public string Title { get; }
+
+        [JsonPropertyName("description")]
+        public string Description { get; }
+
+        [JsonPropertyName("mimeType")]
+        public string MimeType { get; }
+
+        [JsonPropertyName("size")]
+        public int Size { get; }
+
+        [JsonPropertyName("annotations")]
+        public McpResourceAnnotations Annotations { get; }
+    }
+
+    internal sealed class McpResourceAnnotations
+    {
+        public McpResourceAnnotations(IReadOnlyList<string> audience, double priority)
+        {
+            Audience = audience;
+            Priority = priority;
+        }
+
+        [JsonPropertyName("audience")]
+        public IReadOnlyList<string> Audience { get; }
+
+        [JsonPropertyName("priority")]
+        public double Priority { get; }
+    }
+
+    internal sealed class McpResourceReadResult
+    {
+        public McpResourceReadResult(McpTextResourceContents contents)
+        {
+            Contents = new[] { contents };
+        }
+
+        [JsonPropertyName("contents")]
+        public IReadOnlyList<McpTextResourceContents> Contents { get; }
+    }
+
+    internal sealed class McpTextResourceContents
+    {
+        public McpTextResourceContents(string uri, string mimeType, string text)
+        {
+            Uri = uri;
+            MimeType = mimeType;
+            Text = text;
+        }
+
+        [JsonPropertyName("uri")]
+        public string Uri { get; }
+
+        [JsonPropertyName("mimeType")]
+        public string MimeType { get; }
+
+        [JsonPropertyName("text")]
+        public string Text { get; }
+    }
+
     internal sealed class McpToolDefinition
     {
         public McpToolDefinition(
             string name,
             string description,
             JsonElement inputSchema,
-            McpToolAnnotations annotations)
+            McpToolAnnotations annotations
+        )
         {
             Name = name;
             Description = description;
@@ -139,11 +244,7 @@ namespace ADOFAILoom.Mcp.Protocol
 
     internal sealed class McpToolAnnotations
     {
-        public McpToolAnnotations(
-            bool readOnly,
-            bool destructive,
-            bool idempotent,
-            bool openWorld)
+        public McpToolAnnotations(bool readOnly, bool destructive, bool idempotent, bool openWorld)
         {
             ReadOnlyHint = readOnly;
             DestructiveHint = destructive;
@@ -167,9 +268,10 @@ namespace ADOFAILoom.Mcp.Protocol
     internal sealed class McpToolCallResult
     {
         public McpToolCallResult(
-            IReadOnlyList<McpTextContent> content,
+            IReadOnlyList<object> content,
             bool isError,
-            JsonElement? structuredContent = null)
+            JsonElement? structuredContent = null
+        )
         {
             Content = content;
             IsError = isError;
@@ -177,7 +279,7 @@ namespace ADOFAILoom.Mcp.Protocol
         }
 
         [JsonPropertyName("content")]
-        public IReadOnlyList<McpTextContent> Content { get; }
+        public IReadOnlyList<object> Content { get; }
 
         [JsonPropertyName("isError")]
         public bool IsError { get; }
@@ -191,14 +293,30 @@ namespace ADOFAILoom.Mcp.Protocol
             return new McpToolCallResult(
                 new[] { new McpTextContent(result.GetRawText()) },
                 false,
-                result);
+                result
+            );
+        }
+
+        public static McpToolCallResult SuccessWithImage(
+            JsonElement result,
+            byte[] imageData,
+            string mimeType
+        )
+        {
+            return new McpToolCallResult(
+                new object[]
+                {
+                    new McpTextContent(result.GetRawText()),
+                    new McpImageContent(Convert.ToBase64String(imageData), mimeType),
+                },
+                false,
+                result
+            );
         }
 
         public static McpToolCallResult Failure(string message)
         {
-            return new McpToolCallResult(
-                new[] { new McpTextContent(message) },
-                true);
+            return new McpToolCallResult(new[] { new McpTextContent(message) }, true);
         }
     }
 
@@ -216,6 +334,24 @@ namespace ADOFAILoom.Mcp.Protocol
         public string Text { get; }
     }
 
+    internal sealed class McpImageContent
+    {
+        public McpImageContent(string data, string mimeType)
+        {
+            Data = data;
+            MimeType = mimeType;
+        }
+
+        [JsonPropertyName("type")]
+        public string Type => "image";
+
+        [JsonPropertyName("data")]
+        public string Data { get; }
+
+        [JsonPropertyName("mimeType")]
+        public string MimeType { get; }
+    }
+
     internal sealed class McpHttpResponse
     {
         private McpHttpResponse(int statusCode, byte[]? body)
@@ -231,11 +367,13 @@ namespace ADOFAILoom.Mcp.Protocol
         public static McpHttpResponse Json(
             int statusCode,
             object payload,
-            JsonSerializerOptions options)
+            JsonSerializerOptions options
+        )
         {
             return new McpHttpResponse(
                 statusCode,
-                JsonSerializer.SerializeToUtf8Bytes(payload, payload.GetType(), options));
+                JsonSerializer.SerializeToUtf8Bytes(payload, payload.GetType(), options)
+            );
         }
 
         public static McpHttpResponse Empty(int statusCode)

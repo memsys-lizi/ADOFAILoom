@@ -19,37 +19,41 @@ namespace ADOFAILoom.Actions.EditorWorkflow
 
         public Task<EditorHistoryResult> UndoAsync(
             string expectedRevision,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken
+        )
         {
             return dispatcher.InvokeAsync(
                 () => ChangeHistory(expectedRevision, redo: false),
                 McpProtocol.MainThreadTimeout,
-                cancellationToken);
+                cancellationToken
+            );
         }
 
         public Task<EditorHistoryResult> RedoAsync(
             string expectedRevision,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken
+        )
         {
             return dispatcher.InvokeAsync(
                 () => ChangeHistory(expectedRevision, redo: true),
                 McpProtocol.MainThreadTimeout,
-                cancellationToken);
+                cancellationToken
+            );
         }
 
         public Task<LevelSaveResult> SaveAsync(
             string expectedRevision,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken
+        )
         {
             return dispatcher.InvokeAsync(
                 () => Save(expectedRevision),
                 McpProtocol.MainThreadTimeout,
-                cancellationToken);
+                cancellationToken
+            );
         }
 
-        private static EditorHistoryResult ChangeHistory(
-            string expectedRevision,
-            bool redo)
+        private static EditorHistoryResult ChangeHistory(string expectedRevision, bool redo)
         {
             scnEditor editor = EditorSession.RequireMutable();
             EditorStateProvider.RequireRevision(editor, expectedRevision);
@@ -76,7 +80,8 @@ namespace ADOFAILoom.Actions.EditorWorkflow
                 redo ? "redo" : "undo",
                 CanonicalJsonHash.ComputeLevelRevision(editor.levelData),
                 editor.undoStates.Count > 0,
-                editor.redoStates.Count > 0);
+                editor.redoStates.Count > 0
+            );
         }
 
         private static LevelSaveResult Save(string expectedRevision)
@@ -87,24 +92,28 @@ namespace ADOFAILoom.Actions.EditorWorkflow
             if (string.IsNullOrEmpty(levelPath) || !Path.IsPathRooted(levelPath))
             {
                 throw new InvalidOperationException(
-                    "The current editor level does not have an absolute file path.");
+                    "The current editor level does not have an absolute file path."
+                );
             }
 
             string fullPath = Path.GetFullPath(levelPath);
-            if (!string.Equals(
+            if (
+                !string.Equals(
                     Path.GetExtension(fullPath),
                     ".adofai",
-                    StringComparison.OrdinalIgnoreCase))
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
             {
                 throw new InvalidOperationException(
-                    "The current editor path is not an .adofai file.");
+                    "The current editor path is not an .adofai file."
+                );
             }
 
             editor.SaveLevel();
             if (!File.Exists(fullPath))
             {
-                throw new IOException(
-                    $"The editor did not create the level file '{fullPath}'.");
+                throw new IOException($"The editor did not create the level file '{fullPath}'.");
             }
 
             string savedJson = File.ReadAllText(fullPath);
@@ -113,19 +122,22 @@ namespace ADOFAILoom.Actions.EditorWorkflow
             {
                 savedRevision = CanonicalJsonHash.ComputeJsonHash(savedJson);
             }
-            catch (Exception exception) when (
-                exception is System.Text.Json.JsonException ||
-                exception is InvalidOperationException)
+            catch (Exception exception)
+                when (exception is System.Text.Json.JsonException
+                    || exception is InvalidOperationException
+                )
             {
                 throw new IOException(
                     $"The saved level file '{fullPath}' is not valid JSON.",
-                    exception);
+                    exception
+                );
             }
 
             if (!string.Equals(savedRevision, revision, StringComparison.Ordinal))
             {
                 throw new IOException(
-                    "The saved level file does not match the current editor revision.");
+                    "The saved level file does not match the current editor revision."
+                );
             }
 
             return new LevelSaveResult(fullPath, revision, "saved");

@@ -8,19 +8,14 @@ namespace ADOFAILoom.State
         public static EditorState Capture()
         {
             scnEditor editor = EditorSession.RequireReadable();
-            string? levelPath = string.IsNullOrEmpty(ADOBase.levelPath)
-                ? null
-                : ADOBase.levelPath;
-            int[] selectedFloors = editor.selectedFloors
-                .Select(floor => floor.seqID)
-                .ToArray();
-            int[] selectedDecorations = editor.selectedDecorations
-                .Select(decoration => editor.decorations.IndexOf(decoration))
+            string? levelPath = string.IsNullOrEmpty(ADOBase.levelPath) ? null : ADOBase.levelPath;
+            int[] selectedFloors = editor.selectedFloors.Select(floor => floor.seqID).ToArray();
+            int[] selectedDecorations = editor
+                .selectedDecorations.Select(decoration => editor.decorations.IndexOf(decoration))
                 .Where(index => index >= 0)
                 .ToArray();
-            int? currentFloor = scrController.instance == null
-                ? (int?)null
-                : scrController.instance.currentSeqID;
+            int? currentFloor =
+                scrController.instance == null ? (int?)null : scrController.instance.currentSeqID;
 
             return new EditorState(
                 levelPath,
@@ -31,7 +26,8 @@ namespace ADOFAILoom.State
                 editor.playMode,
                 editor.undoStates.Count > 0,
                 editor.redoStates.Count > 0,
-                CanonicalJsonHash.ComputeLevelRevision(editor.levelData));
+                CanonicalJsonHash.ComputeLevelRevision(editor.levelData)
+            );
         }
 
         public static string RequireRevision(scnEditor editor, string expectedRevision)
@@ -40,19 +36,21 @@ namespace ADOFAILoom.State
             {
                 throw new ArgumentException(
                     "Expected revision must be a 64-character lowercase SHA-256 value.",
-                    nameof(expectedRevision));
+                    nameof(expectedRevision)
+                );
             }
 
             for (int index = 0; index < expectedRevision.Length; index++)
             {
                 char character = expectedRevision[index];
-                bool isLowerHex = character >= '0' && character <= '9' ||
-                                  character >= 'a' && character <= 'f';
+                bool isLowerHex =
+                    character >= '0' && character <= '9' || character >= 'a' && character <= 'f';
                 if (!isLowerHex)
                 {
                     throw new ArgumentException(
                         "Expected revision must be a 64-character lowercase SHA-256 value.",
-                        nameof(expectedRevision));
+                        nameof(expectedRevision)
+                    );
                 }
             }
 
@@ -60,8 +58,9 @@ namespace ADOFAILoom.State
             if (!string.Equals(expectedRevision, actualRevision, StringComparison.Ordinal))
             {
                 throw new InvalidOperationException(
-                    $"The editor revision is stale. Expected '{expectedRevision}', " +
-                    $"but the current revision is '{actualRevision}'. Read the editor state again.");
+                    $"The editor revision is stale. Expected '{expectedRevision}', "
+                        + $"but the current revision is '{actualRevision}'. Read the editor state again."
+                );
             }
 
             return actualRevision;

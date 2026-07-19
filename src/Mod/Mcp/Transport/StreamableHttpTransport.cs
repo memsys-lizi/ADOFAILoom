@@ -59,7 +59,8 @@ namespace ADOFAILoom.Mcp.Transport
                 cancellation = newCancellation;
                 acceptLoop = Task.Run(
                     () => AcceptLoopAsync(newListener, newCancellation),
-                    CancellationToken.None);
+                    CancellationToken.None
+                );
             }
         }
 
@@ -101,7 +102,8 @@ namespace ADOFAILoom.Mcp.Transport
 
         private async Task AcceptLoopAsync(
             HttpListener activeListener,
-            CancellationTokenSource activeCancellation)
+            CancellationTokenSource activeCancellation
+        )
         {
             CancellationToken cancellationToken = activeCancellation.Token;
             while (!cancellationToken.IsCancellationRequested)
@@ -142,30 +144,37 @@ namespace ADOFAILoom.Mcp.Transport
                     },
                     CancellationToken.None,
                     TaskContinuationOptions.ExecuteSynchronously,
-                    TaskScheduler.Default);
+                    TaskScheduler.Default
+                );
             }
         }
 
         private async Task HandleContextAsync(
             int requestId,
             HttpListenerContext context,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken
+        )
         {
             try
             {
                 HttpListenerRequest request = context.Request;
-                if (request.RemoteEndPoint == null ||
-                    !IPAddress.IsLoopback(request.RemoteEndPoint.Address))
+                if (
+                    request.RemoteEndPoint == null
+                    || !IPAddress.IsLoopback(request.RemoteEndPoint.Address)
+                )
                 {
                     await WriteEmptyAsync(context.Response, 403, cancellationToken)
                         .ConfigureAwait(false);
                     return;
                 }
 
-                if (!string.Equals(
+                if (
+                    !string.Equals(
                         request.Url?.AbsolutePath,
                         McpProtocol.EndpointPath,
-                        StringComparison.Ordinal))
+                        StringComparison.Ordinal
+                    )
+                )
                 {
                     await WriteEmptyAsync(context.Response, 404, cancellationToken)
                         .ConfigureAwait(false);
@@ -195,8 +204,10 @@ namespace ADOFAILoom.Mcp.Transport
                 }
 
                 string? accept = request.Headers["Accept"];
-                if (!ContainsMediaType(accept, "application/json") ||
-                    !ContainsMediaType(accept, "text/event-stream"))
+                if (
+                    !ContainsMediaType(accept, "application/json")
+                    || !ContainsMediaType(accept, "text/event-stream")
+                )
                 {
                     await WriteEmptyAsync(context.Response, 406, cancellationToken)
                         .ConfigureAwait(false);
@@ -227,14 +238,13 @@ namespace ADOFAILoom.Mcp.Transport
                     .HandleAsync(
                         body,
                         request.Headers[McpProtocol.ProtocolVersionHeader],
-                        cancellationToken)
+                        cancellationToken
+                    )
                     .ConfigureAwait(false);
                 await WriteResponseAsync(context.Response, response, cancellationToken)
                     .ConfigureAwait(false);
             }
-            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-            {
-            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { }
             catch (HttpListenerException)
             {
                 // The client disconnected while the response was being written.
@@ -243,9 +253,7 @@ namespace ADOFAILoom.Mcp.Transport
             {
                 // The client disconnected while the request or response stream was active.
             }
-            catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested)
-            {
-            }
+            catch (ObjectDisposedException) when (cancellationToken.IsCancellationRequested) { }
             catch (Exception exception)
             {
                 log($"MCP HTTP request failed unexpectedly: {exception}");
@@ -261,7 +269,8 @@ namespace ADOFAILoom.Mcp.Transport
 
         private static async Task<byte[]> ReadBodyAsync(
             Stream input,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken
+        )
         {
             using (var output = new MemoryStream())
             {
@@ -289,7 +298,8 @@ namespace ADOFAILoom.Mcp.Transport
         private static async Task WriteResponseAsync(
             HttpListenerResponse response,
             McpHttpResponse message,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken
+        )
         {
             response.StatusCode = message.StatusCode;
             if (message.Body == null)
@@ -302,8 +312,8 @@ namespace ADOFAILoom.Mcp.Transport
             response.ContentType = "application/json; charset=utf-8";
             response.ContentEncoding = Encoding.UTF8;
             response.ContentLength64 = message.Body.Length;
-            await response.OutputStream
-                .WriteAsync(message.Body, 0, message.Body.Length, cancellationToken)
+            await response
+                .OutputStream.WriteAsync(message.Body, 0, message.Body.Length, cancellationToken)
                 .ConfigureAwait(false);
             response.Close();
         }
@@ -311,17 +321,20 @@ namespace ADOFAILoom.Mcp.Transport
         private static Task WriteEmptyAsync(
             HttpListenerResponse response,
             int statusCode,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken
+        )
         {
             return WriteResponseAsync(
                 response,
                 McpHttpResponse.Empty(statusCode),
-                cancellationToken);
+                cancellationToken
+            );
         }
 
         private static async Task TryWriteInternalErrorAsync(
             HttpListenerResponse response,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken
+        )
         {
             try
             {
@@ -334,19 +347,14 @@ namespace ADOFAILoom.Mcp.Transport
                 McpHttpResponse message = McpHttpResponse.Json(
                     500,
                     payload,
-                    McpProtocol.JsonOptions);
+                    McpProtocol.JsonOptions
+                );
                 await WriteResponseAsync(response, message, cancellationToken)
                     .ConfigureAwait(false);
             }
-            catch (HttpListenerException)
-            {
-            }
-            catch (IOException)
-            {
-            }
-            catch (ObjectDisposedException)
-            {
-            }
+            catch (HttpListenerException) { }
+            catch (IOException) { }
+            catch (ObjectDisposedException) { }
         }
 
         private static bool IsAllowedOrigin(string? origin)
@@ -356,9 +364,9 @@ namespace ADOFAILoom.Mcp.Transport
                 return true;
             }
 
-            return Uri.TryCreate(origin, UriKind.Absolute, out Uri? uri) &&
-                   (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps) &&
-                   uri.IsLoopback;
+            return Uri.TryCreate(origin, UriKind.Absolute, out Uri? uri)
+                && (uri.Scheme == Uri.UriSchemeHttp || uri.Scheme == Uri.UriSchemeHttps)
+                && uri.IsLoopback;
         }
 
         private static bool IsJsonContentType(string? contentType)
@@ -369,7 +377,13 @@ namespace ADOFAILoom.Mcp.Transport
             }
 
             string[] parts = contentType.Split(';');
-            if (!string.Equals(parts[0].Trim(), "application/json", StringComparison.OrdinalIgnoreCase))
+            if (
+                !string.Equals(
+                    parts[0].Trim(),
+                    "application/json",
+                    StringComparison.OrdinalIgnoreCase
+                )
+            )
             {
                 return false;
             }
@@ -377,12 +391,14 @@ namespace ADOFAILoom.Mcp.Transport
             foreach (string parameter in parts.Skip(1))
             {
                 string[] pair = parameter.Split(new[] { '=' }, 2);
-                if (pair.Length == 2 &&
-                    string.Equals(pair[0].Trim(), "charset", StringComparison.OrdinalIgnoreCase))
+                if (
+                    pair.Length == 2
+                    && string.Equals(pair[0].Trim(), "charset", StringComparison.OrdinalIgnoreCase)
+                )
                 {
                     string charset = pair[1].Trim().Trim('"');
-                    return string.Equals(charset, "utf-8", StringComparison.OrdinalIgnoreCase) ||
-                           string.Equals(charset, "utf8", StringComparison.OrdinalIgnoreCase);
+                    return string.Equals(charset, "utf-8", StringComparison.OrdinalIgnoreCase)
+                        || string.Equals(charset, "utf8", StringComparison.OrdinalIgnoreCase);
                 }
             }
 
@@ -428,11 +444,12 @@ namespace ADOFAILoom.Mcp.Transport
             {
                 Exception[] unexpected = exception
                     .Flatten()
-                    .InnerExceptions
-                    .Where(inner => inner is not OperationCanceledException &&
-                                    inner is not ObjectDisposedException &&
-                                    inner is not HttpListenerException &&
-                                    inner is not IOException)
+                    .InnerExceptions.Where(inner =>
+                        inner is not OperationCanceledException
+                        && inner is not ObjectDisposedException
+                        && inner is not HttpListenerException
+                        && inner is not IOException
+                    )
                     .ToArray();
                 if (unexpected.Length > 0)
                 {
@@ -447,16 +464,10 @@ namespace ADOFAILoom.Mcp.Transport
             {
                 response.Close();
             }
-            catch (ObjectDisposedException)
-            {
-            }
-            catch (HttpListenerException)
-            {
-            }
+            catch (ObjectDisposedException) { }
+            catch (HttpListenerException) { }
         }
 
-        private sealed class RequestTooLargeException : Exception
-        {
-        }
+        private sealed class RequestTooLargeException : Exception { }
     }
 }

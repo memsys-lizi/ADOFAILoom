@@ -2,11 +2,7 @@ namespace ADOFAILoom.Actions.EditorWorkflow
 {
     internal sealed class EditorHistoryResult
     {
-        public EditorHistoryResult(
-            string operation,
-            string revision,
-            bool canUndo,
-            bool canRedo)
+        public EditorHistoryResult(string operation, string revision, bool canUndo, bool canRedo)
         {
             Operation = operation;
             Revision = revision;

@@ -13,7 +13,8 @@ namespace ADOFAILoom.State
             bool previewing,
             bool canUndo,
             bool canRedo,
-            string revision)
+            string revision
+        )
         {
             LevelPath = levelPath;
             FloorCount = floorCount;

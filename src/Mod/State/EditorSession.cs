@@ -9,20 +9,21 @@ namespace ADOFAILoom.State
             scnEditor editor = scnEditor.instance;
             if (editor == null)
             {
-                throw new InvalidOperationException(
-                    "This tool requires the level editor scene.");
+                throw new InvalidOperationException("This tool requires the level editor scene.");
             }
 
             if (!editor.initialized)
             {
                 throw new InvalidOperationException(
-                    "The level editor has not finished initializing.");
+                    "The level editor has not finished initializing."
+                );
             }
 
             if (editor.isLoading)
             {
                 throw new InvalidOperationException(
-                    "The level editor is currently loading a level.");
+                    "The level editor is currently loading a level."
+                );
             }
 
             return editor;
@@ -34,19 +35,20 @@ namespace ADOFAILoom.State
             if (editor.playMode)
             {
                 throw new InvalidOperationException(
-                    "Visual events cannot be modified while the editor is previewing the level.");
+                    "Visual events cannot be modified while the editor is previewing the level."
+                );
             }
 
             if (editor.lockPathEditing)
             {
-                throw new InvalidOperationException(
-                    "The editor has path editing locked.");
+                throw new InvalidOperationException("The editor has path editing locked.");
             }
 
             if (editor.changingState != 0)
             {
                 throw new InvalidOperationException(
-                    "The editor is currently changing its undo or redo state.");
+                    "The editor is currently changing its undo or redo state."
+                );
             }
 
             return editor;

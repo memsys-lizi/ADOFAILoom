@@ -17,26 +17,33 @@ namespace ADOFAILoom.Mcp.Tooling
         private readonly Type resultType;
         private readonly JsonSerializerOptions jsonOptions;
         private readonly HashSet<string> argumentNames;
+        private readonly PropertyInfo? imageDataProperty;
+        private readonly string? imageMimeType;
 
-        public McpToolInvoker(
-            object? target,
-            MethodInfo method,
-            JsonSerializerOptions jsonOptions)
+        public McpToolInvoker(object? target, MethodInfo method, JsonSerializerOptions jsonOptions)
         {
             this.target = target;
             this.method = method;
             this.jsonOptions = jsonOptions;
             parameters = method.GetParameters();
             resultType = ValidateSignature(method, parameters);
+            McpImageContentAttribute? imageAttribute =
+                method.GetCustomAttribute<McpImageContentAttribute>();
+            if (imageAttribute != null)
+            {
+                imageDataProperty = ValidateImageResult(method, resultType, imageAttribute);
+                imageMimeType = imageAttribute.MimeType;
+            }
             argumentNames = parameters
                 .Where(parameter => parameter.ParameterType != typeof(CancellationToken))
                 .Select(parameter => JsonNamingPolicy.CamelCase.ConvertName(parameter.Name!))
                 .ToHashSet(StringComparer.Ordinal);
         }
 
-        public async Task<JsonElement> InvokeAsync(
+        public async Task<McpToolInvocationResult> InvokeAsync(
             JsonElement? arguments,
-            CancellationToken cancellationToken)
+            CancellationToken cancellationToken
+        )
         {
             JsonElement argumentObject = arguments ?? EmptyArguments();
             if (argumentObject.ValueKind != JsonValueKind.Object)
@@ -50,7 +57,8 @@ namespace ADOFAILoom.Mcp.Tooling
                 if (!argumentNames.Contains(property.Name))
                 {
                     throw new McpInvalidArgumentsException(
-                        $"Unknown tool argument '{property.Name}'.");
+                        $"Unknown tool argument '{property.Name}'."
+                    );
                 }
             }
 
@@ -80,7 +88,8 @@ namespace ADOFAILoom.Mcp.Tooling
                     }
 
                     throw new McpInvalidArgumentsException(
-                        $"Required tool argument '{name}' is missing.");
+                        $"Required tool argument '{name}' is missing."
+                    );
                 }
 
                 try
@@ -88,11 +97,16 @@ namespace ADOFAILoom.Mcp.Tooling
                     object? deserialized = JsonSerializer.Deserialize(
                         value.GetRawText(),
                         parameter.ParameterType,
-                        jsonOptions);
-                    if (deserialized == null && Nullable.GetUnderlyingType(parameter.ParameterType) == null)
+                        jsonOptions
+                    );
+                    if (
+                        deserialized == null
+                        && Nullable.GetUnderlyingType(parameter.ParameterType) == null
+                    )
                     {
                         throw new McpInvalidArgumentsException(
-                            $"Tool argument '{name}' cannot be null.");
+                            $"Tool argument '{name}' cannot be null."
+                        );
                     }
 
                     invocationArguments[index] = deserialized;
@@ -101,7 +115,8 @@ namespace ADOFAILoom.Mcp.Tooling
                 {
                     throw new McpInvalidArgumentsException(
                         $"Tool argument '{name}' is invalid: {exception.Message}",
-                        exception);
+                        exception
+                    );
                 }
             }
 
@@ -127,15 +142,77 @@ namespace ADOFAILoom.Mcp.Tooling
                 result = invocationResult;
             }
 
-            return JsonSerializer.SerializeToElement(result, resultType, jsonOptions);
+            JsonElement structuredContent = JsonSerializer.SerializeToElement(
+                result,
+                resultType,
+                jsonOptions
+            );
+            if (imageDataProperty == null)
+            {
+                return McpToolInvocationResult.Structured(structuredContent);
+            }
+
+            byte[]? imageData = (byte[]?)imageDataProperty.GetValue(result);
+            if (imageData == null || imageData.Length == 0)
+            {
+                throw new InvalidOperationException(
+                    $"MCP image tool '{method.Name}' returned no image data."
+                );
+            }
+
+            return McpToolInvocationResult.Image(structuredContent, imageData, imageMimeType!);
         }
 
-        private static Type ValidateSignature(MethodInfo method, IEnumerable<ParameterInfo> parameters)
+        private static PropertyInfo ValidateImageResult(
+            MethodInfo method,
+            Type resultType,
+            McpImageContentAttribute attribute
+        )
+        {
+            if (string.IsNullOrWhiteSpace(attribute.DataProperty))
+            {
+                throw new InvalidOperationException(
+                    $"MCP image tool '{method.Name}' must declare an image data property."
+                );
+            }
+
+            if (!string.Equals(attribute.MimeType, "image/png", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"MCP image tool '{method.Name}' declares unsupported MIME type "
+                        + $"'{attribute.MimeType}'."
+                );
+            }
+
+            PropertyInfo? property = resultType.GetProperty(
+                attribute.DataProperty,
+                BindingFlags.Instance | BindingFlags.Public
+            );
+            if (
+                property == null
+                || property.PropertyType != typeof(byte[])
+                || property.GetMethod == null
+            )
+            {
+                throw new InvalidOperationException(
+                    $"MCP image tool '{method.Name}' result '{resultType.FullName}' must expose "
+                        + $"a public byte[] property named '{attribute.DataProperty}'."
+                );
+            }
+
+            return property;
+        }
+
+        private static Type ValidateSignature(
+            MethodInfo method,
+            IEnumerable<ParameterInfo> parameters
+        )
         {
             if (method.IsGenericMethodDefinition || method.ContainsGenericParameters)
             {
                 throw new InvalidOperationException(
-                    $"MCP tool method '{method.DeclaringType?.FullName}.{method.Name}' cannot be generic.");
+                    $"MCP tool method '{method.DeclaringType?.FullName}.{method.Name}' cannot be generic."
+                );
             }
 
             int cancellationTokens = 0;
@@ -145,7 +222,8 @@ namespace ADOFAILoom.Mcp.Tooling
                 if (parameter.ParameterType.IsByRef || parameter.IsOut)
                 {
                     throw new InvalidOperationException(
-                        $"MCP tool method '{method.Name}' cannot use ref or out parameters.");
+                        $"MCP tool method '{method.Name}' cannot use ref or out parameters."
+                    );
                 }
 
                 if (parameter.ParameterType == typeof(CancellationToken))
@@ -154,49 +232,60 @@ namespace ADOFAILoom.Mcp.Tooling
                     continue;
                 }
 
-                if (parameter.GetCustomAttribute<McpOptionalAttribute>() != null &&
-                    !parameter.HasDefaultValue &&
-                    parameter.ParameterType.IsValueType &&
-                    Nullable.GetUnderlyingType(parameter.ParameterType) == null)
+                if (
+                    parameter.GetCustomAttribute<McpOptionalAttribute>() != null
+                    && !parameter.HasDefaultValue
+                    && parameter.ParameterType.IsValueType
+                    && Nullable.GetUnderlyingType(parameter.ParameterType) == null
+                )
                 {
                     throw new InvalidOperationException(
-                        $"Optional MCP tool parameter '{parameter.Name}' on method '{method.Name}' " +
-                        "must be nullable or declare a default value.");
+                        $"Optional MCP tool parameter '{parameter.Name}' on method '{method.Name}' "
+                            + "must be nullable or declare a default value."
+                    );
                 }
 
                 if (string.IsNullOrWhiteSpace(parameter.Name))
                 {
                     throw new InvalidOperationException(
-                        $"MCP tool method '{method.Name}' contains an unnamed parameter.");
+                        $"MCP tool method '{method.Name}' contains an unnamed parameter."
+                    );
                 }
 
                 string jsonName = JsonNamingPolicy.CamelCase.ConvertName(parameter.Name);
                 if (!names.Add(jsonName))
                 {
                     throw new InvalidOperationException(
-                        $"MCP tool method '{method.Name}' contains duplicate JSON parameter '{jsonName}'.");
+                        $"MCP tool method '{method.Name}' contains duplicate JSON parameter '{jsonName}'."
+                    );
                 }
             }
 
             if (cancellationTokens > 1)
             {
                 throw new InvalidOperationException(
-                    $"MCP tool method '{method.Name}' contains more than one CancellationToken.");
+                    $"MCP tool method '{method.Name}' contains more than one CancellationToken."
+                );
             }
 
             Type returnType = method.ReturnType;
             if (returnType == typeof(void) || returnType == typeof(Task))
             {
                 throw new InvalidOperationException(
-                    $"MCP tool method '{method.Name}' must return a value or Task<T>.");
+                    $"MCP tool method '{method.Name}' must return a value or Task<T>."
+                );
             }
 
             if (typeof(Task).IsAssignableFrom(returnType))
             {
-                if (!returnType.IsGenericType || returnType.GetGenericTypeDefinition() != typeof(Task<>))
+                if (
+                    !returnType.IsGenericType
+                    || returnType.GetGenericTypeDefinition() != typeof(Task<>)
+                )
                 {
                     throw new InvalidOperationException(
-                        $"MCP tool method '{method.Name}' must return Task<T>, not '{returnType.FullName}'.");
+                        $"MCP tool method '{method.Name}' must return Task<T>, not '{returnType.FullName}'."
+                    );
                 }
 
                 return returnType.GetGenericArguments()[0];
@@ -240,21 +329,52 @@ namespace ADOFAILoom.Mcp.Tooling
             if (element.ValueKind == JsonValueKind.Null)
             {
                 throw new McpInvalidArgumentsException(
-                    $"Tool argument '{path}' cannot be null. Omit optional values instead.");
+                    $"Tool argument '{path}' cannot be null. Omit optional values instead."
+                );
             }
+        }
+    }
+
+    internal sealed class McpToolInvocationResult
+    {
+        private McpToolInvocationResult(
+            JsonElement structuredContent,
+            byte[]? imageData,
+            string? imageMimeType
+        )
+        {
+            StructuredContent = structuredContent;
+            ImageData = imageData;
+            ImageMimeType = imageMimeType;
+        }
+
+        public JsonElement StructuredContent { get; }
+
+        public byte[]? ImageData { get; }
+
+        public string? ImageMimeType { get; }
+
+        public static McpToolInvocationResult Structured(JsonElement structuredContent)
+        {
+            return new McpToolInvocationResult(structuredContent, null, null);
+        }
+
+        public static McpToolInvocationResult Image(
+            JsonElement structuredContent,
+            byte[] imageData,
+            string imageMimeType
+        )
+        {
+            return new McpToolInvocationResult(structuredContent, imageData, imageMimeType);
         }
     }
 
     internal sealed class McpInvalidArgumentsException : Exception
     {
         public McpInvalidArgumentsException(string message)
-            : base(message)
-        {
-        }
+            : base(message) { }
 
         public McpInvalidArgumentsException(string message, Exception innerException)
-            : base(message, innerException)
-        {
-        }
+            : base(message, innerException) { }
     }
 }

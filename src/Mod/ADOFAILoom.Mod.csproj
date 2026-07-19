@@ -1,6 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
-  <Import Project="..\..\ADOFAILoom.local.props" Condition="Exists('..\..\ADOFAILoom.local.props')" />
+  <Import
+    Project="..\..\ADOFAILoom.local.props"
+    Condition="Exists('..\..\ADOFAILoom.local.props')"
+  />
 
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
@@ -12,7 +14,8 @@
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
     <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
     <OutputPath>bin\$(Configuration)\</OutputPath>
-    <GameExePath Condition="'$(GameExePath)' == '' and '$(ADOFAI_GAME_EXE)' != ''">$(ADOFAI_GAME_EXE)</GameExePath>
+    <GameExePath Condition="'$(GameExePath)' == '' and '$(ADOFAI_GAME_EXE)' != ''"
+      >$(ADOFAI_GAME_EXE)</GameExePath>
     <DeployMod Condition="'$(DeployMod)' == ''">false</DeployMod>
     <AutoLaunchGame Condition="'$(AutoLaunchGame)' == ''">false</AutoLaunchGame>
   </PropertyGroup>
@@ -38,6 +41,7 @@
     <Compile Include="Actions\**\*.cs" />
     <Compile Include="Mcp\**\*.cs" />
     <Compile Include="State\**\*.cs" />
+    <Compile Include="Settings\**\*.cs" />
     <Compile Include="Threading\**\*.cs" />
   </ItemGroup>
 
@@ -62,6 +66,26 @@
       <Private>false</Private>
       <ExternallyResolved>true</ExternallyResolved>
     </Reference>
+    <Reference Include="UnityEngine.ParticleSystemModule">
+      <HintPath>$(ManagedAssembliesDir)\UnityEngine.ParticleSystemModule.dll</HintPath>
+      <Private>false</Private>
+      <ExternallyResolved>true</ExternallyResolved>
+    </Reference>
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>$(ManagedAssembliesDir)\UnityEngine.ImageConversionModule.dll</HintPath>
+      <Private>false</Private>
+      <ExternallyResolved>true</ExternallyResolved>
+    </Reference>
+    <Reference Include="UnityEngine.ScreenCaptureModule">
+      <HintPath>$(ManagedAssembliesDir)\UnityEngine.ScreenCaptureModule.dll</HintPath>
+      <Private>false</Private>
+      <ExternallyResolved>true</ExternallyResolved>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(ManagedAssembliesDir)\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>false</Private>
+      <ExternallyResolved>true</ExternallyResolved>
+    </Reference>
     <Reference Include="UnityModManager">
       <HintPath>$(ManagedAssembliesDir)\UnityModManager\UnityModManager.dll</HintPath>
       <Private>false</Private>
@@ -73,6 +97,8 @@
     <None Update="Info.json">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
+    <EmbeddedResource Include="..\..\docs\visual-effects\*.md">
+      <LogicalName>ADOFAILoom.Guides.%(Filename)%(Extension)</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
-
 </Project>
